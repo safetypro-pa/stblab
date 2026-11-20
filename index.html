@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de escenarios para control de hemorragias masivas versión 1.0</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dod: {
+                            navy: '#002B49',
+                            dark: '#0A192F',
+                            card: '#112240',
+                            border: '#1E3A5F',
+                            red: '#C8102E',
+                            redDark: '#900B20',
+                            gold: '#F59E0B',
+                            success: '#10B981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0A192F;
+            color: #FFFFFF;
+            user-select: none;
+        }
+        .pulse-red {
+            animation: pulse-red-anim 1.2s infinite;
+        }
+        @keyframes pulse-red-anim {
+            0% { box-shadow: 0 0 0 0 rgba(200, 16, 46, 0.8); }
+            70% { box-shadow: 0 0 0 14px rgba(200, 16, 46, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(200, 16, 46, 0); }
+        }
+        .blood-drip {
+            background: linear-gradient(180deg, #C8102E 0%, #900B20 100%);
+        }
+        .correct-flash {
+            animation: flash-green 0.6s ease;
+        }
+        @keyframes flash-green {
+            0% { background-color: rgba(16, 185, 129, 0.4); }
+            100% { background-color: transparent; }
+        }
+        .incorrect-flash {
+            animation: flash-red 0.6s ease;
+        }
+        @keyframes flash-red {
+            0% { background-color: rgba(200, 16, 46, 0.4); }
+            100% { background-color: transparent; }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0A192F;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E3A5F;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #C8102E;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-dod-dark text-white overflow-x-hidden">
+
+    <!-- Header / Navbar -->
+    <header class="bg-dod-navy border-b border-dod-border px-4 py-3 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-dod-red flex items-center justify-center text-white font-black text-xl shadow-lg shadow-red-950/60">
+                    <i class="fa-solid fa-hand-holding-medical"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight tracking-wide text-white flex items-center gap-2">
+                        Simulador de escenarios para control de hemorragias masivas versión 1.0
+                    </h1>
+                    <p class="text-xs text-blue-200">Protocolos Oficiales DoD Stop the Bleed® • TCCC • C-TECC</p>
+                </div>
+            </div>
+
+            <!-- Global Stats Bar -->
+            <div id="header-stats" class="hidden md:flex items-center gap-5 bg-dod-card px-4 py-2 rounded-xl border border-dod-border text-sm font-mono">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-heart-pulse text-emerald-400"></i>
+                    <span class="text-slate-300">Superv:</span>
+                    <span id="stat-survived" class="font-bold text-emerald-400">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-skull text-rose-500"></i>
+                    <span class="text-slate-300">Bajas:</span>
+                    <span id="stat-deaths" class="font-bold text-rose-500">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-award text-amber-400"></i>
+                    <span class="text-slate-300">Pts:</span>
+                    <span id="stat-score" class="font-bold text-amber-300">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-bullseye text-blue-400"></i>
+                    <span class="text-slate-300">Caso:</span>
+                    <span id="stat-progress" class="font-bold text-blue-300">0/50</span>
+                </div>
+            </div>
+
+            <button id="btn-restart" class="text-xs bg-dod-card hover:bg-dod-border px-3 py-2 rounded-lg border border-dod-border transition flex items-center gap-2">
+                <i class="fa-solid fa-rotate"></i>
+                <span class="hidden sm:inline">Reiniciar</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col justify-center">
+
+        <!-- SCREEN 1: Welcome & Mode Selection -->
+        <section id="screen-welcome" class="max-w-3xl mx-auto w-full bg-dod-card rounded-2xl border border-dod-border p-6 sm:p-8 shadow-2xl space-y-6">
+            <div class="text-center space-y-3">
+                <div class="inline-block p-4 rounded-full bg-red-950/70 border border-dod-red/60 text-dod-red mb-2">
+                    <i class="fa-solid fa-triangle-exclamation text-4xl animate-bounce"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Programa Oficial Stop the Bleed® & TCCC/TECC</h2>
+                <p class="text-slate-200 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+                    Entrenamiento interactivo avanzado con <span class="text-amber-400 font-bold">50 casos clínicos complejos</span> y retroalimentación visual estricta basada en las directrices del Departamento de Defensa (DoD) de EE.UU.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center space-y-1">
+                    <i class="fa-solid fa-shield-halved text-2xl text-blue-400 mb-1"></i>
+                    <h3 class="font-bold text-sm text-white">Algoritmo MARCnH</h3>
+                    <p class="text-xs text-slate-300">Prioridad absoluta en hemorragias exanguinantes.</p>
+                </div>
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center space-y-1">
+                    <i class="fa-solid fa-user-injured text-2xl text-dod-red mb-1"></i>
+                    <h3 class="font-bold text-sm text-white">50 Casos Reales</h3>
+                    <p class="text-xs text-slate-300">Escolares, industriales, tácticos, k9, pediátricos y desastres.</p>
+                </div>
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center space-y-1">
+                    <i class="fa-solid fa-bell text-2xl text-amber-400 mb-1"></i>
+                    <h3 class="font-bold text-sm text-white">Alertas Visuales</h3>
+                    <p class="text-xs text-slate-300">Feedback inmediato verde/rojo y penalización hemodinámica.</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 pt-2">
+                <label class="block text-sm font-semibold text-slate-200">Selecciona el modo de simulación:</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button id="btn-mode-practice" class="p-4 rounded-xl bg-dod-dark hover:bg-dod-border border-2 border-dod-border hover:border-emerald-500 transition text-left space-y-2 group">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-emerald-400 group-hover:text-emerald-300 text-lg">Modo Práctica Didáctica</span>
+                            <i class="fa-solid fa-graduation-cap text-emerald-400 text-xl"></i>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-normal">
+                            Explicaciones educativas profundas tras cada decisión con alertas visuales positivas y correctivas paso a paso.
+                        </p>
+                    </button>
+
+                    <button id="btn-mode-exam" class="p-4 rounded-xl bg-dod-dark hover:bg-dod-border border-2 border-dod-border hover:border-dod-red transition text-left space-y-2 group">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-dod-red group-hover:text-red-400 text-lg">Modo Examen Oficial</span>
+                            <i class="fa-solid fa-stopwatch text-dod-red text-xl"></i>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-normal">
+                            Cronómetro estricto por decisión (25 segundos), pérdida acelerada de sangre y certificación final tras los 50 casos.
+                        </p>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 2: Simulation Dashboard -->
+        <section id="screen-sim" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6" id="sim-container-wrapper">
+
+            <!-- Left Column: Patient State & Vitals (5 Cols) -->
+            <div class="lg:col-span-5 space-y-4">
+                
+                <!-- Scenario Info Box -->
+                <div class="bg-dod-card rounded-2xl border border-dod-border p-5 shadow-xl space-y-3">
+                    <div class="flex justify-between items-center border-b border-dod-border pb-3">
+                        <span id="case-number" class="text-xs font-mono font-bold bg-dod-dark text-amber-400 px-2.5 py-1 rounded-md border border-amber-500/30">
+                            CASO 01 / 50
+                        </span>
+                        <span id="case-environment" class="text-xs font-semibold px-2.5 py-1 rounded bg-blue-950 text-blue-300 border border-blue-700/50">
+                            <i class="fa-solid fa-building"></i> Urbano / Civil
+                        </span>
+                    </div>
+
+                    <h3 id="case-title" class="text-lg font-extrabold text-white leading-tight">Accidente con Miter Saw en Taller</h3>
+                    
+                    <p id="case-description" class="text-sm text-slate-300 leading-relaxed bg-dod-dark p-3 rounded-lg border border-dod-border">
+                        Cargando descripción del escenario...
+                    </p>
+
+                    <!-- Tactical Phase Badge -->
+                    <div class="flex items-center gap-2 pt-1">
+                        <span class="text-xs font-bold text-slate-400">FASE / PROTOCOLO:</span>
+                        <span id="case-phase" class="text-xs font-bold px-2.5 py-0.5 rounded bg-red-950 text-dod-red border border-dod-red/60">
+                            Stop The Bleed / TFC
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Patient Monitor Box -->
+                <div class="bg-dod-card rounded-2xl border border-dod-border p-5 shadow-xl space-y-4 relative overflow-hidden">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-sm uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-heart-pulse text-dod-red animate-pulse"></i> Monitor Hemodinámico
+                        </h4>
+                        <span id="patient-status-badge" class="text-xs px-2.5 py-0.5 font-mono rounded bg-emerald-950 text-emerald-400 border border-emerald-700">
+                            ESTABLE
+                        </span>
+                    </div>
+
+                    <!-- Blood Loss Progress Bar -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-xs font-mono">
+                            <span class="text-slate-400">Pérdida Volumétrica:</span>
+                            <span id="blood-loss-text" class="text-dod-red font-bold">150 ml / 5000 ml</span>
+                        </div>
+                        <div class="w-full bg-dod-dark h-4 rounded-full overflow-hidden border border-dod-border p-0.5">
+                            <div id="blood-loss-bar" class="blood-drip h-full rounded-full transition-all duration-500" style="width: 3%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Vitals Grid -->
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div class="bg-dod-dark p-3 rounded-xl border border-dod-border text-center">
+                            <span class="text-xs text-slate-400 block font-mono">Frecuencia Cardíaca</span>
+                            <span id="vital-hr" class="text-xl font-mono font-bold text-emerald-400">88 BPM</span>
+                        </div>
+                        <div class="bg-dod-dark p-3 rounded-xl border border-dod-border text-center">
+                            <span class="text-xs text-slate-400 block font-mono">Presión Arterial</span>
+                            <span id="vital-bp" class="text-xl font-mono font-bold text-emerald-400">120/80</span>
+                        </div>
+                        <div class="bg-dod-dark p-3 rounded-xl border border-dod-border text-center">
+                            <span class="text-xs text-slate-400 block font-mono">Estado Mental (AVPU)</span>
+                            <span id="vital-avpu" class="text-base font-mono font-bold text-slate-200">Alerta (A)</span>
+                        </div>
+                        <div class="bg-dod-dark p-3 rounded-xl border border-dod-border text-center">
+                            <span class="text-xs text-slate-400 block font-mono">Perfusión / Piel</span>
+                            <span id="vital-skin" class="text-xs font-mono font-bold text-slate-300 mt-1 block">Tibia / Rosada</span>
+                        </div>
+                    </div>
+
+                    <!-- Visual Bleeding Warning -->
+                    <div id="bleeding-alert" class="p-3 bg-red-950/90 border border-dod-red rounded-xl flex items-center gap-3 text-red-200 text-xs pulse-red">
+                        <i class="fa-solid fa-triangle-exclamation text-xl text-dod-red"></i>
+                        <div>
+                            <span class="font-bold block text-white">¡HEMORRAGIA MASIVA ACTIVA!</span>
+                            <span id="bleeding-site-text">Sangrado pulsátil copioso en muslo derecho.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Interactive Decision Tree (7 Cols) -->
+            <div class="lg:col-span-7 space-y-4">
+                <div id="decision-panel-card" class="bg-dod-card rounded-2xl border border-dod-border p-5 shadow-xl flex flex-col justify-between h-full min-h-[500px] transition-colors duration-300">
+                    
+                    <div>
+                        <!-- Action Phase Title -->
+                        <div class="flex items-center justify-between border-b border-dod-border pb-3 mb-4">
+                            <h3 id="step-title" class="font-bold text-lg text-white flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-amber-400"></i> Paso 1: Evaluación de Seguridad
+                            </h3>
+                            <span id="timer-display" class="hidden text-sm font-mono font-bold bg-red-950 text-dod-red border border-dod-red px-3 py-1 rounded-lg">
+                                <i class="fa-solid fa-clock mr-1"></i> <span id="time-left">25</span>s
+                            </span>
+                        </div>
+
+                        <!-- Prompt Question -->
+                        <p id="step-prompt" class="text-slate-100 font-medium text-base mb-6 bg-dod-dark p-4 rounded-xl border border-dod-border">
+                            ¿Cuál es tu primera acción prioritaria al llegar a la escena bajo la amenaza actual?
+                        </p>
+
+                        <!-- Decision Buttons Container -->
+                        <div id="options-container" class="space-y-3">
+                            <!-- Injected dynamically via JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Instant Feedback Card (For Practice Mode) -->
+                    <div id="feedback-card" class="hidden mt-6 p-4 rounded-xl border space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-sm" id="feedback-header">
+                            <!-- Injected via JS -->
+                        </div>
+                        <p id="feedback-text" class="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                            <!-- Injected via JS -->
+                        </p>
+                        <button id="btn-next-step" class="mt-2 w-full py-2.5 px-4 bg-dod-navy hover:bg-dod-border text-white font-semibold text-xs sm:text-sm rounded-lg border border-blue-400/40 transition flex items-center justify-center gap-2 shadow-md">
+                            <span>Siguiente Acción / Continuar</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+        <!-- SCREEN 3: Case Debrief / Summary Modal -->
+        <section id="screen-case-summary" class="hidden max-w-3xl mx-auto w-full bg-dod-card rounded-2xl border border-dod-border p-6 sm:p-8 shadow-2xl space-y-6">
+            <div class="text-center space-y-2">
+                <div id="summary-icon" class="inline-block p-4 rounded-full bg-emerald-950 border border-emerald-600 text-emerald-400 mb-1">
+                    <i class="fa-solid fa-user-check text-4xl"></i>
+                </div>
+                <h2 id="summary-title" class="text-2xl font-black text-white">¡PACIENTE ESTABILIZADO!</h2>
+                <p id="summary-subtitle" class="text-slate-300 text-sm">Resumen táctico del caso clínico</p>
+            </div>
+
+            <div class="bg-dod-dark p-4 rounded-xl border border-dod-border space-y-3 font-mono text-xs sm:text-sm">
+                <div class="flex justify-between border-b border-dod-border pb-2">
+                    <span class="text-slate-400">Resultado final:</span>
+                    <span id="summary-result-text" class="font-bold text-emerald-400">Supervivencia Exitosa</span>
+                </div>
+                <div class="flex justify-between border-b border-dod-border pb-2">
+                    <span class="text-slate-400">Pérdida de Sangre Total:</span>
+                    <span id="summary-blood-loss" class="font-bold text-slate-200">450 ml</span>
+                </div>
+                <div class="flex justify-between border-b border-dod-border pb-2">
+                    <span class="text-slate-400">Puntuación obtenida en el caso:</span>
+                    <span id="summary-points" class="font-bold text-amber-400">+100 pts</span>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <h4 class="font-bold text-xs uppercase text-slate-300 tracking-wider">Fundamento Técnico DoD Stop the Bleed / TCCC:</h4>
+                <div id="summary-debrief-text" class="text-xs sm:text-sm text-slate-200 leading-relaxed bg-dod-dark p-4 rounded-xl border border-dod-border space-y-2">
+                    <!-- Dynamic debrief text -->
+                </div>
+            </div>
+
+            <button id="btn-next-case" class="w-full py-3 bg-dod-red hover:bg-red-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-red-950/60 transition flex items-center justify-center gap-2">
+                <span>Avanzar al Siguiente Caso Clínico</span>
+                <i class="fa-solid fa-forward"></i>
+            </button>
+        </section>
+
+        <!-- SCREEN 4: Final Results & Certificate Dashboard -->
+        <section id="screen-final" class="hidden max-w-4xl mx-auto w-full bg-dod-card rounded-2xl border border-dod-border p-6 sm:p-8 shadow-2xl space-y-8">
+            <div class="text-center space-y-3">
+                <div class="inline-block p-4 rounded-full bg-amber-950 border border-amber-600 text-amber-400">
+                    <i class="fa-solid fa-certificate text-5xl"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-black text-white">Certificación y Evaluación Final</h2>
+                <p class="text-slate-300 text-sm">Simulación Completa de los 50 Escenarios de Control de Hemorragias Masivas</p>
+            </div>
+
+            <!-- Main Score Overview Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center">
+                    <span class="text-xs text-slate-400 block font-mono">Supervivientes</span>
+                    <span id="final-survived" class="text-2xl font-black text-emerald-400">45 / 50</span>
+                </div>
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center">
+                    <span class="text-xs text-slate-400 block font-mono">Bajas / Muertes</span>
+                    <span id="final-deaths" class="text-2xl font-black text-rose-500">5</span>
+                </div>
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center">
+                    <span class="text-xs text-slate-400 block font-mono">Precisión Global</span>
+                    <span id="final-accuracy" class="text-2xl font-black text-blue-400">90%</span>
+                </div>
+                <div class="bg-dod-dark p-4 rounded-xl border border-dod-border text-center">
+                    <span class="text-xs text-slate-400 block font-mono">Puntaje Total</span>
+                    <span id="final-score" class="text-2xl font-black text-amber-400">4500 pts</span>
+                </div>
+            </div>
+
+            <!-- Qualification Rating Badge -->
+            <div id="final-rank-box" class="p-4 rounded-xl bg-dod-dark border border-dod-border text-center space-y-1">
+                <span class="text-xs text-slate-400 font-mono uppercase tracking-widest block">Calificación Obtenida:</span>
+                <span id="final-rank-title" class="text-xl font-extrabold text-emerald-400">PROVEEDOR EXPERTO STOP THE BLEED & TCCC</span>
+                <p id="final-rank-desc" class="text-xs text-slate-200">Demuestras un dominio sobresaliente en la jerarquía MARCnH, manejo de extremidades, uniones corporales y cavidades.</p>
+            </div>
+
+            <!-- Error Breakdown List -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-amber-400"></i> Desglose de Áreas de Mejora y Errores Detectados
+                </h3>
+                <div id="final-errors-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+
+            <div class="pt-4 flex flex-col sm:flex-row gap-4">
+                <button id="btn-restart-final" class="flex-1 py-3 bg-dod-navy hover:bg-dod-border text-white font-bold rounded-xl border border-blue-400/40 transition flex justify-center items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span>Reiniciar Entrenamiento (50 Casos)</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dod-navy border-t border-dod-border py-3 text-center text-xs text-slate-400">
+        <div class="max-w-7xl mx-auto px-4">
+            Basado en las guías oficiales del Departamento de Defensa (DoD) de EE.UU. • Stop The Bleed® • CoTCCC • C-TECC. Uso educativo y simulación.
+        </div>
+    </footer>
+
+    <!-- LOGIC / JAVASCRIPT CODE WITH 50 SCENARIOS -->
+    <script>
+        /* ==========================================================================
+           50 COMPLETE CLINICAL SCENARIOS (STOP THE BLEED / TCCC / TECC)
+           ========================================================================== */
+        const scenarios = [
+            {
+                id: 1,
+                title: "Amputación Traumática por Miter Saw en Taller",
+                env: "Industrial / Civil",
+                phase: "Stop The Bleed / TFC",
+                desc: "Operador industrial con amputación traumática subtotal de la pierna derecha a nivel de tibia. Brote pulsátil exanguinante, charco hemático expandiéndose.",
+                vitals: { hr: 125, bp: "90/50", avpu: "Alerta (A)", skin: "Pálida y fría" },
+                initialBloodLoss: 400,
+                bleedRate: 15,
+                steps: [
+                    {
+                        title: "Paso 1: Prioridad de Control Masivo",
+                        prompt: "La máquina está apagada y la escena es segura. ¿Cuál es la primera acción prioritaria según MARCnH?",
+                        options: [
+                            { text: "Evaluar la vía aérea abriendo la boca y buscando obstrucciones.", correct: false, feedback: "Incorrecto. En hemorragias exanguinantes masivas, el control del sangrado (M) precede a la vía aérea (A)." },
+                            { text: "Aplicar inmediatamente un torniquete de extremidades.", correct: true, feedback: "¡Correcto! En amputaciones con brote arterial masivo, el torniquete es la intervención inmediata para salvar la vida." },
+                            { text: "Buscar una vena para iniciar infusión de líquidos intravenosos.", correct: false, feedback: "Incorrecto. Demorar el control físico de la hemorragia causa choque hipovolémico letal." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Colocación del Torniquete",
+                        prompt: "¿Dónde y cómo debes colocar el torniquete (CAT / SOFTT-W)?",
+                        options: [
+                            { text: "2 a 3 pulgadas por encima de la herida/amputación, directamente sobre la piel.", correct: true, feedback: "¡Correcto! Se coloca 2-3 pulgadas proximales a la lesión, evitando articulaciones." },
+                            { text: "Directamente sobre la rótula de la rodilla para mayor presión ósea.", correct: false, feedback: "Incorrecto. Nunca se coloca un torniquete sobre una articulación." },
+                            { text: "Debajo de la lesión para conservar la circulación del resto del pie.", correct: false, feedback: "Incorrecto. Un torniquete distal no detiene el flujo proveniente del corazón." }
+                        ]
+                    },
+                    {
+                        title: "Paso 3: Verificación de Eficacia",
+                        prompt: "Tras ajustar el molinete, notas que persiste un hilo leve de sangre y pulso distal. ¿Acción a seguir?",
+                        options: [
+                            { text: "Retirar el torniquete y poner una venda elástica floja.", correct: false, feedback: "Incorrecto. Quitar el torniquete reactivará la exanguinación." },
+                            { text: "Aplicar un segundo torniquete adyacente (justo por encima) del primero.", correct: true, feedback: "¡Correcto! Si un torniquete no logra la oclusión total, se coloca un segundo TQ proximal al primero." },
+                            { text: "Esperar 15 minutos para ver si coagula solo.", correct: false, feedback: "Incorrecto. Las amputaciones arteriales no coagulan espontáneamente sin presión adecuada." }
+                        ]
+                    }
+                ],
+                debrief: "Las amputaciones traumáticas de extremidades requieren torniquetes aplicados a 2-3 pulgadas de la lesión. Si falla la oclusión, un segundo TQ adyacente es imperativo."
+            },
+            {
+                id: 2,
+                title: "Herida por Arma de Fuego en la Ingle (Zona Unional)",
+                env: "Urbano / Violencia",
+                phase: "Tactical Field Care",
+                desc: "Impacto de bala en la fosa ilíaca/ingle izquierda. Sangrado profuso y pulsátil en pliegue inguinal. Paciente agitado, pálido.",
+                vitals: { hr: 135, bp: "85/45", avpu: "Verbal (V)", skin: "Pálida, sudorosa" },
+                initialBloodLoss: 600,
+                bleedRate: 20,
+                steps: [
+                    {
+                        title: "Paso 1: Selección de Dispositivo Unional",
+                        prompt: "El sangrado es en la ingle (zona unional). ¿Cuál es la técnica indicada?",
+                        options: [
+                            { text: "Colocar un torniquete CAT estándar en el muslo lo más alto posible.", correct: false, feedback: "Incorrecto. Los torniquetes de extremidad no logran sellar pliegues unicionales como la ingle." },
+                            { text: "Empaquetar la herida profundamente con gasa hemostática + presión directa.", correct: true, feedback: "¡Correcto! En zonas unionales (axila, ingle, cuello), el empaquetamiento (wound packing) es el estándar." },
+                            { text: "Aplicar un parche torácico oclusivo.", correct: false, feedback: "Incorrecto. Los parches torácicos son exclusivos para heridas penetrantes en el tórax." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Técnica de Empaquetamiento",
+                        prompt: "¿Cómo se introduce la gasa hemostática en la cavidad?",
+                        options: [
+                            { text: "Colocar la gasa doblada encima de la piel y vendar superficialmente.", correct: false, feedback: "Incorrecto. La gasa debe rellenar el trayecto hasta el foco sangrante." },
+                            { text: "Introducir progresivamente la gasa en el fondo de la herida manteniendo presión continua con los dedos.", correct: true, feedback: "¡Correcto! Se empaqueta bloqueando el espacio directamente en el vaso sangrante." },
+                            { text: "Hacer un torniquete pélvico con una sábana sin meter nada en la herida.", correct: false, feedback: "Incorrecto. Una cincha pélvica estabiliza fracturas, no laceraciones vasculares directas." }
+                        ]
+                    },
+                    {
+                        title: "Paso 3: Tiempo de Presión Manual",
+                        prompt: "Tras empaquetar con gasa hemostática (QuikClot/Celox), ¿cuánto tiempo mínimo debes mantener presión manual directa continua?",
+                        options: [
+                            { text: "Al menos 3 minutos continuos.", correct: true, feedback: "¡Correcto! Las gasas hemostáticas requieren mínimo 3 minutos de presión manual ininterrumpida." },
+                            { text: "15 segundos antes de vendar.", correct: false, feedback: "Incorrecto. 15 segundos no permiten la reacción hemostática del agente." },
+                            { text: "No se requiere presión si se usó gasa hemostática.", correct: false, feedback: "Incorrecto. El agente hemostático requiere compresión mecánica obligatoria." }
+                        ]
+                    }
+                ],
+                debrief: "Las lesiones en zonas unionales requieren empaquetamiento profundo (wound packing) de la herida y un mínimo de 3 minutos de presión manual directa."
+            },
+            {
+                id: 3,
+                title: "Herida Penetrante en Tórax por Esquirla (Neumotórax)",
+                env: "Táctico / Hostil",
+                phase: "Tactical Field Care",
+                desc: "Esquirlas en hemitórax derecho. Herida soplante (burbujas y sonido de aire). Dificultad respiratoria severa.",
+                vitals: { hr: 110, bp: "115/75", avpu: "Alerta (A)", skin: "Diaforética" },
+                initialBloodLoss: 100,
+                bleedRate: 2,
+                steps: [
+                    {
+                        title: "Paso 1: Prioridad en Tórax",
+                        prompt: "No hay hemorragia masiva externa. Pasas a Respiración (R). ¿Qué dispositivo colocas en la herida torácica?",
+                        options: [
+                            { text: "Empaquetar la cavidad torácica con gasa hemostática.", correct: false, feedback: "¡Peligro letal! NUNCA se empaqueta la cavidad torácica o abdominal." },
+                            { text: "Aplicar un parche torácico ventilado (Vented Chest Seal).", correct: true, feedback: "¡Correcto! Las heridas penetrantes de torso requieren parche torácico oclusivo ventilado para prevenir neumotórax a tensión." },
+                            { text: "Realizar una traqueostomía de emergencia.", correct: false, feedback: "Incorrecto. La vía aérea superior no está obstruida." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Preparación de la Piel",
+                        prompt: "Hay sangre y sudor alrededor de la herida torácica antes de pegar el parche. ¿Qué debes hacer?",
+                        options: [
+                            { text: "Secar y limpiar rápidamente la piel para asegurar la adhesión del hidrogel.", correct: true, feedback: "¡Correcto! Una piel húmeda o con sangre hará que el parche pierda el sello hermético." },
+                            { text: "Verter alcohol puro dentro del pulmón.", correct: false, feedback: "Incorrecto. Los antisépticos son tóxicos para la pleura." },
+                            { text: "Vendar el tórax entero con cinta adhesiva de embalaje.", correct: false, feedback: "Incorrecto. Restringirá la expansión respiratoria del pulmón sano." }
+                        ]
+                    },
+                    {
+                        title: "Paso 3: Monitoreo de Neumotórax a Tensión",
+                        prompt: "Minutos después, el paciente presenta cianosis, ausencia de ruidos respiratorios y caída de presión arterial. ¿Qué haces?",
+                        options: [
+                            { text: "Abrir/ventilar el parche (burping) o realizar descompresión con aguja en 2° espacio intercostal.", correct: true, feedback: "¡Excelente! Son signos clásicos de neumotórax a tensión que requieren liberar el aire atrapado." },
+                            { text: "Administrar epinefrina por alergia.", correct: false, feedback: "Incorrecto. Es un colapso pulmonar por presión de aire intrapleural." },
+                            { text: "Dar respiración boca a boca a alta presión.", correct: false, feedback: "Incorrecto. Aumentará la presión pleural agravando el cuadro." }
+                        ]
+                    }
+                ],
+                debrief: "Toda herida en el torso (cuello a ombligo) requiere parche torácico ventilado. ¡Nunca empaquetar el tórax! Vigilar neumotórax a tensión."
+            },
+            {
+                id: 4,
+                title: "Enfrentamiento Armado: Care Under Fire (CUF)",
+                env: "Táctico / Hostil",
+                phase: "Care Under Fire",
+                desc: "Compañero recibe impacto en el muslo en zona abierta bajo fuego enemigo activo. Sangrado copioso.",
+                vitals: { hr: 140, bp: "100/60", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 250,
+                bleedRate: 25,
+                steps: [
+                    {
+                        title: "Paso 1: Prioridad en CUF",
+                        prompt: "Ves abundante sangre en el muslo de tu compañero en medio de fuego enemigo. ¿Primera acción?",
+                        options: [
+                            { text: "Correr inmediatamente sin arma a atenderlo.", correct: false, feedback: "Incorrecto. La mejor medicina en CUF es la superioridad de fuego. Convertirse en baja no ayuda." },
+                            { text: "Devolver el fuego y ordenar a la baja que busque cubierta y se auto-aplique TQ.", correct: true, feedback: "¡Correcto! En CUF, responder al fuego y ponerse a cubierto es la prioridad número uno." },
+                            { text: "Lanzar vendas y esperar que cese el tiroteo.", correct: false, feedback: "Incorrecto. Sin dirección ni cobertura activa el herido morirá desangrado." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Torniquete High & Tight en CUF",
+                        prompt: "Se logra mover al herido a cubierta temporal. ¿Cómo se coloca el torniquete en fase CUF?",
+                        options: [
+                            { text: "Desnudar totalmente la pierna y buscar la herida exacta.", correct: false, feedback: "Incorrecto. En Care Under Fire / Direct Threat Care no hay tiempo de desnudar prendas." },
+                            { text: "Aplicar el torniquete 'High & Tight' (lo más alto posible en el muslo) DIRECTAMENTE SOBRE LA ROPA.", correct: true, feedback: "¡Correcto! En CUF se coloca de forma rápida 'High & Tight' sobre la ropa." },
+                            { text: "Esperar a la ambulancia avanzada para colocar el TQ.", correct: false, feedback: "Incorrecto. La exanguinación femoral mata en menos de 3 minutos." }
+                        ]
+                    }
+                ],
+                debrief: "En Care Under Fire la prioridad es la superioridad de fuego y colocar torniquetes 'High & Tight' sobre la ropa. La revisión detallada se hace en Tactical Field Care."
+            },
+            {
+                id: 5,
+                title: "Laceración Profunda de Cuello por Vidrio Roto",
+                env: "Urbano / Desastre",
+                phase: "Tactical Field Care",
+                desc: "Laceración lateral en cuello (zona carotídea) por explosión de escaparate. Brote de sangre oscura y brillante.",
+                vitals: { hr: 130, bp: "80/40", avpu: "Verbal (V)", skin: "Muy pálida" },
+                initialBloodLoss: 700,
+                bleedRate: 25,
+                steps: [
+                    {
+                        title: "Paso 1: Contraindicación Absoluta",
+                        prompt: "Hemorragia severa en cuello lateral. ¿Qué está estrictamente PROHIBIDO?",
+                        options: [
+                            { text: "Aplicar un torniquete de extremidades alrededor del cuello.", correct: true, feedback: "¡Correcto! NUNCA se aplica un torniquete alrededor del cuello ni del torso." },
+                            { text: "Empaquetar la herida con gasa hemostática.", correct: false, feedback: "Incorrecto. El empaquetamiento de herida es el tratamiento indicado en cuello." },
+                            { text: "Ejercer presión directa manual.", correct: false, feedback: "Incorrecto. La presión manual es una medida universal." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Fijación Segura en Cuello",
+                        prompt: "Empaquetas la herida con gasa hemostática ejerciendo presión hacia la columna cervical (sin obstruir la vía aérea). ¿Cómo fijas el vendaje?",
+                        options: [
+                            { text: "Envolver la venda elástica en círculos apretados alrededor de todo el cuello.", correct: false, feedback: "¡Peligro letal! Esto asfixiará al paciente comprimiendo la tráquea." },
+                            { text: "Cruzar el vendaje sobre la herida y anclarlo pasando por debajo de la axila opuesta.", correct: true, feedback: "¡Correcto! El vendaje de cuello se asegura cruzando por la axila contralateral para evitar estrangular la vía aérea." },
+                            { text: "Sostener con la mano sin vendaje durante el traslado.", correct: false, feedback: "Incorrecto. Fatigará al operador y es inestable." }
+                        ]
+                    }
+                ],
+                debrief: "El empaquetamiento en cuello exige cautela para no oprimir la tráquea. Los vendajes de cuello siempre se anclan por la axila opuesta."
+            },
+            {
+                id: 6,
+                title: "Hemorragia en Paciente Pediátrico (Escolar)",
+                env: "Escolar / Civil",
+                phase: "Stop The Bleed",
+                desc: "Niño de 7 años con corte en arteria braquial por accidente con cristal en escuela. Sangrado pulsátil rápido.",
+                vitals: { hr: 150, bp: "75/40", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 200,
+                bleedRate: 10,
+                steps: [
+                    {
+                        title: "Paso 1: Uso de TQ en Pediatría",
+                        prompt: "¿Se pueden utilizar torniquetes de extremidad en niños según Stop The Bleed y TECC?",
+                        options: [
+                            { text: "No, los torniquetes están prohibidos en menores de edad.", correct: false, feedback: "Incorrecto. Los TQ modernos son seguros y efectivos en niños si la circunferencia lo permite." },
+                            { text: "Sí. Si la extremidad es demasiado pequeña, se realiza empaquetamiento profundo y presión directa.", correct: true, feedback: "¡Correcto! El TQ se usa en niños; si el miembro es hiperreducido, se empaqueta y comprime." },
+                            { text: "Solo usar pañuelos de tela flojos.", correct: false, feedback: "Incorrecto. Los pañuelos flojos aumentan el sangrado venoso." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Aplicación del TQ Pediátrico",
+                        prompt: "El TQ CAT ajusta al brazo del niño. ¿Cómo procedes?",
+                        options: [
+                            { text: "Colocar 2-3 pulgadas arriba de la herida, eliminar toda la holgura del velcro y girar el molinete hasta cese del sangrado.", correct: true, feedback: "¡Excelente! La eliminación de holgura es clave en extremidades delgadas." },
+                            { text: "Girar el molinete solo media vuelta para no lastimar.", correct: false, feedback: "Incorrecto. Si no ocluyes la arteria, el niño entrará en shock exanguinante." },
+                            { text: "Poner el TQ en la muñeca.", correct: false, feedback: "Incorrecto. El radio y cúbito protegen las arterias de la muñeca." }
+                        ]
+                    }
+                ],
+                debrief: "Los TQ recomendados se pueden usar en niños. Si la extremidad es muy delgada, el empaquetamiento y compresión manual es la alternativa."
+            },
+            {
+                id: 7,
+                title: "Atrapamiento Vehicular con Amputación Parcial de Antebrazo",
+                env: "Vehicular / Civil",
+                phase: "Tactical Field Care",
+                desc: "Conductor atrapado en colisión con antebrazo aprisionado bajo el tablero y sangrado arterial activo. Rescate tardará 20 min.",
+                vitals: { hr: 118, bp: "95/60", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 350,
+                bleedRate: 12,
+                steps: [
+                    {
+                        title: "Paso 1: Acceso Restringido",
+                        prompt: "No puedes acceder al sitio exacto de la herida por los fierros. ¿Qué haces?",
+                        options: [
+                            { text: "Colocar un torniquete en el brazo (por encima del codo) donde la extremidad es accesible.", correct: true, feedback: "¡Correcto! Si la herida distal no es accesible, se coloca el TQ más proximal en la zona libre." },
+                            { text: "Esperar a los bomberos 20 minutos sin hacer nada.", correct: false, feedback: "Incorrecto. 20 minutos de sangrado arterial causarán paro cardíaco." },
+                            { text: "Inyectar suero salino sin detener la hemorragia.", correct: false, feedback: "Incorrecto. Diluirá la sangre y aumentará la salida por la presión." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Registro TQ TIME",
+                        prompt: "Colocas el TQ y detienes el sangrado. ¿Qué dato debes registrar obligatoriamente?",
+                        options: [
+                            { text: "La hora exacta de aplicación del torniquete (TQ TIME).", correct: true, feedback: "¡Correcto! Documentar la hora es vital para el equipo quirúrgico por el riesgo de isquemia." },
+                            { text: "El grupo sanguíneo del paciente.", correct: false, feedback: "Incorrecto. No se asume el grupo sin pruebas cruzadas." },
+                            { text: "El número de modelo del torniquete.", correct: false, feedback: "Incorrecto. Lo crítico es el tiempo de inicio de isquemia." }
+                        ]
+                    }
+                ],
+                debrief: "El atrapamiento no exime de controlar la hemorragia. Aplica el TQ en el segmento proximal accesible y registra la hora (TQ TIME)."
+            },
+            {
+                id: 8,
+                title: "Explosión IED: Muslo Sangrante y Evisceración Abdominal",
+                env: "Táctico / Desastre",
+                phase: "Tactical Field Care",
+                desc: "Víctima de artefacto explosivo. Sangrado masivo en muslo derecho y herida abierta en abdomen con asas intestinales expuestas.",
+                vitals: { hr: 138, bp: "80/50", avpu: "Verbal (V)", skin: "Fría y pálida" },
+                initialBloodLoss: 650,
+                bleedRate: 22,
+                steps: [
+                    {
+                        title: "Paso 1: Priorización (MARCnH)",
+                        prompt: "Tienes sangrado en muslo y evisceración abdominal. ¿Qué tratas PRIMERO?",
+                        options: [
+                            { text: "Reintroducir los intestinos dentro del abdomen de inmediato.", correct: false, feedback: "¡Peligro! NUNCA se introducen las vísceras expuestas en el campo." },
+                            { text: "Colocar un torniquete en el muslo derecho para frenar la hemorragia exanguinante.", correct: true, feedback: "¡Correcto! La hemorragia masiva (M) mata en minutos y es la máxima prioridad." },
+                            { text: "Cubrir al paciente con una manta térmica.", correct: false, feedback: "Incorrecto. La hipotermia es importante (H), pero el control de sangrado (M) es primero." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Manejo de la Evisceración",
+                        prompt: "Controlado el muslo, atiendes el abdomen. ¿Cómo tratas las vísceras expuestas?",
+                        options: [
+                            { text: "Empaquetar el abdomen con gasa hemostática y apretar fuerte.", correct: false, feedback: "Incorrecto. Jamás se empaqueta la cavidad abdominal abierta." },
+                            { text: "Cubrir las vísceras con apósito húmedo estéril y proteger contra la hipotermia.", correct: true, feedback: "¡Correcto! En evisceraciones: NO reintroducir, cubrir con apósito húmedo estéril y evitar desecación." },
+                            { text: "Lavar las vísceras con alcohol puro.", correct: false, feedback: "Incorrecto. Los antisépticos dañan el peritoneo." }
+                        ]
+                    }
+                ],
+                debrief: "La hemorragia exanguinante tiene prioridad absoluta. Las vísceras evisceradas NUNCA se reintroducen ni empaquetan; se cubren con apósitos húmedos estériles."
+            },
+            {
+                id: 9,
+                title: "Laceración Arterial Axilar Profunda",
+                env: "Industrial / Rescate",
+                phase: "Tactical Field Care",
+                desc: "Trabajador cae sobre lámina metálica penetrando profundamente en la axila izquierda. Sangrado borbotónico arterial en concavidad axilar.",
+                vitals: { hr: 128, bp: "88/52", avpu: "Alerta (A)", skin: "Fría" },
+                initialBloodLoss: 500,
+                bleedRate: 18,
+                steps: [
+                    {
+                        title: "Paso 1: Técnica Axilar",
+                        prompt: "Un TQ de brazo se resbala en la axila. ¿Qué procedimiento ejecutas?",
+                        options: [
+                            { text: "Empaquetamiento profundo de la fosa axilar con gasa hemostática + Presión Directa.", correct: true, feedback: "¡Correcto! La axila es una zona unional; se empaqueta dirigiendo la presión hacia el húmero/clavícula." },
+                            { text: "Colocar un parche torácico sobre la axila.", correct: false, feedback: "Incorrecto. El parche torácico no ejerce presión arterial." },
+                            { text: "Elevar el brazo por encima de la cabeza.", correct: false, feedback: "Incorrecto. La elevación no detiene un sangrado arterial axilar." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Vendaje Compresivo Axilar",
+                        prompt: "Tras 3 minutos de presión manual con gasa hemostática, ¿cómo aseguras el empaquetamiento?",
+                        options: [
+                            { text: "Aplicar vendaje compresivo cruzando el torso y sujetando sobre el hombro opuesto.", correct: true, feedback: "¡Correcto! Los vendajes en axila requieren anclaje en figura de 8 alrededor del torso y hombro contralateral." },
+                            { text: "Retirar la gasa para verificar si coaguló.", correct: false, feedback: "Incorrecto. NUNCA se remueve la gasa de empaquetamiento en el campo." },
+                            { text: "Dejar la axila descubierta sin vendaje.", correct: false, feedback: "Incorrecto. El movimiento desplazaría la gasa y reactivaría la hemorragia." }
+                        ]
+                    }
+                ],
+                debrief: "Las hemorragias axilares requieren empaquetamiento profundo de la cavidad y vendaje compresivo anclado por el hombro contralateral."
+            },
+            {
+                id: 10,
+                title: "Corte Profundo en Antebrazo por Arma Blanca",
+                env: "Urbano / Civil",
+                phase: "Stop The Bleed",
+                desc: "Laceración en cara anterior del antebrazo con abundante sangrado continuo y rápido, no pulsátil masivo.",
+                vitals: { hr: 98, bp: "110/70", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 250,
+                bleedRate: 6,
+                steps: [
+                    {
+                        title: "Paso 1: Escalonamiento Stop The Bleed",
+                        prompt: "El sangrado no es pulsátil masivo de alta presión, pero es abundante. ¿Cuál es el primer escalón?",
+                        options: [
+                            { text: "Presión directa firme y continua con compresa/gasa estéril o paño limpio.", correct: true, feedback: "¡Correcto! En hemorragias no masivas o como primer paso, la presión directa manual es altamente efectiva." },
+                            { text: "Aplicar dos torniquetes High & Tight de inmediato.", correct: false, feedback: "Incorrecto. Reservado para sangrados masivos exanguinantes incontenibles." },
+                            { text: "Hacer un torniquete de cuerda delgada.", correct: false, feedback: "Incorrecto. Las cuerdas delgadas causan lesión tisular sin ocluir vasos." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Reevaluación tras Presión",
+                        prompt: "Tras 5 minutos de presión, la sangre sigue empapando los apósitos rápidamente. ¿Siguiente paso?",
+                        options: [
+                            { text: "Quitar los apósitos ensangrentados y poner nuevos.", correct: false, feedback: "Incorrecto. Retirar apósitos remueve la fibrina en formación y reinicia el sangrado." },
+                            { text: "Colocar un torniquete de extremidad 2-3 pulgadas por encima de la herida.", correct: true, feedback: "¡Correcto! Si la presión directa falla, se escala inmediatamente al torniquete." },
+                            { text: "Aplicar cubitos de hielo en la herida.", correct: false, feedback: "Incorrecto. El hielo induce vasoconstricción errática y afecta la coagulación." }
+                        ]
+                    }
+                ],
+                debrief: "Si la presión directa manual falla en controlar una hemorragia de extremidad, se debe escalar sin demora al uso del torniquete."
+            },
+            {
+                id: 11,
+                title: "Tiroteo Masivo: Múltiples Heridas Extremidades",
+                env: "Urbano / Táctico",
+                phase: "Tactical Field Care",
+                desc: "Víctima inconsciente con impactos en muslo izquierdo y brazo derecho. Sangrado activo en ambas extremidades.",
+                vitals: { hr: 145, bp: "70/40", avpu: "Dolor (P)", skin: "Muy pálida y sudorosa" },
+                initialBloodLoss: 850,
+                bleedRate: 30,
+                steps: [
+                    {
+                        title: "Paso 1: Manejo Multi-Sitio",
+                        prompt: "Hay sangrado masivo en muslo y brazo. ¿Cómo procedes?",
+                        options: [
+                            { text: "Aplicar torniquetes en ambas extremidades afectadas comenzando por la de mayor calibre (muslo).", correct: true, feedback: "¡Excelente! El muslo alberga la femoral (mayor flujo). Se colocan TQ en todas las extremidades sangrantes." },
+                            { text: "Atender primero los raspones en la cara.", correct: false, feedback: "Incorrecto. Las lesiones faciales menores no causan shock hipovolémico." },
+                            { text: "Colocar un torniquete en el abdomen.", correct: false, feedback: "¡Error letal! No existen TQ abdominales estándar." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Vía Aérea en Inconsciente",
+                        prompt: "Con los TQ puestos, el paciente sigue inconsciente. ¿Cómo aseguras la vía aérea?",
+                        options: [
+                            { text: "Colocar Cánula Nasofaríngea (NPA) y posición lateral de seguridad.", correct: true, feedback: "¡Correcto! En pacientes inconscientes sin obstrucción mecánica, la NPA y posición de recuperación salvan la vida." },
+                            { text: "Darle de beber agua.", correct: false, feedback: "¡Peligro! Jamás dar líquidos orales a pacientes con alteración de consciencia." },
+                            { text: "Hiperventilar a 40 respiraciones por minuto.", correct: false, feedback: "Incorrecto. Empeora la hipotensión y disminuye el retorno venoso." }
+                        ]
+                    }
+                ],
+                debrief: "Ante lesiones múltiples, coloca torniquetes iniciando por los vasos de mayor calibre y atiende la vía aérea con cánula nasofaríngea."
+            },
+            {
+                id: 12,
+                title: "Politrauma en Mina: Pie + Tórax",
+                env: "Industrial / Minería",
+                phase: "Tactical Field Care",
+                desc: "Minero alcanzado por explosión. Amputación de pie derecho y herida abierta en hemitórax izquierdo sin sangrado masivo activo.",
+                vitals: { hr: 120, bp: "100/60", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 300,
+                bleedRate: 14,
+                steps: [
+                    {
+                        title: "Paso 1: Control de Extremidad",
+                        prompt: "Amputación a nivel de tobillo con sangrado borbotónico. ¿Acción?",
+                        options: [
+                            { text: "Torniquete a 2-3 pulgadas por encima de la lesión.", correct: true, feedback: "¡Correcto! Aplicar TQ proximal a la amputación en la pierna." },
+                            { text: "Lavar el pie amputado antes de frenar la sangre.", correct: false, feedback: "Incorrecto. Salvar la vida precede a la extremidad." },
+                            { text: "Meter el muñón en hielo.", correct: false, feedback: "Incorrecto. Precipita la hipotermia y coagulopatía." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Evaluación Torácica",
+                        prompt: "Con el TQ de la pierna puesto, examinas la herida torácica que aspira aire. ¿Manejo?",
+                        options: [
+                            { text: "Sellar con Parche Torácico Ventilado.", correct: true, feedback: "¡Correcto! Siguiendo MARCnH: M (Sangrado controlado) -> R (Respiración/Parche)." },
+                            { text: "Empaquetar el tórax con gasa.", correct: false, feedback: "Incorrecto. NUNCA empaquetar el tórax." },
+                            { text: "Colocar un torniquete en las costillas.", correct: false, feedback: "Incorrecto. Inútil e imposible." }
+                        ]
+                    }
+                ],
+                debrief: "Sigue rigurosamente la secuencia MARCnH: Masive Bleeding -> Airway -> Respiration."
+            },
+            {
+                id: 13,
+                title: "Herida por Machete en Inguinal Alta",
+                env: "Agrícola / Rural",
+                phase: "Stop The Bleed",
+                desc: "Corte por machete en pliegue del muslo con pelvis (arteria femoral común). Sangrado a chorros a gran distancia.",
+                vitals: { hr: 140, bp: "80/40", avpu: "Verbal (V)", skin: "Pálida y fría" },
+                initialBloodLoss: 750,
+                bleedRate: 35,
+                steps: [
+                    {
+                        title: "Paso 1: TQ Inefectivo en Inguinal",
+                        prompt: "Intentas poner un CAT pero la herida está tan alta en la ingle que la banda resbala. ¿Qué haces?",
+                        options: [
+                            { text: "Cambiar inmediatamente a empaquetamiento profundo con gasa hemostática y presión manual directa con el peso del cuerpo.", correct: true, feedback: "¡Correcto! Si la anatomía impide el TQ, se pasa de inmediato al empaquetamiento profundo e inclinación del peso corporal." },
+                            { text: "Pedir otro torniquete diferente.", correct: false, feedback: "Incorrecto. Perderás tiempo vital mientras el paciente se desangra." },
+                            { text: "Poner una venda elástica floja.", correct: false, feedback: "Incorrecto. Inefectivo ante la arteria femoral." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Presión Corporal Sostenida",
+                        prompt: "Rellenas la cavidad con gasa hemostática. ¿Cómo ejerces la presión?",
+                        options: [
+                            { text: "Con codos bloqueados, transmitiendo el peso corporal verticalmente sobre el paquete por 3-5 minutos.", correct: true, feedback: "¡Excelente! El peso corporal con codos bloqueados asegura la compresión de arterias profundas de gran calibre." },
+                            { text: "Tocando suavemente con dos dedos.", correct: false, feedback: "Incorrecto. La presión arterial superará la fuerza de dos dedos." },
+                            { text: "Liberando cada 30 segundos.", correct: false, feedback: "Incorrecto. Interrumpir la presión destruye el coágulo en formación." }
+                        ]
+                    }
+                ],
+                debrief: "Cuando la anatomía inutiliza el TQ, el empaquetamiento profundo con gasa hemostática y el peso corporal sobre el foco es la técnica salvavidas."
+            },
+            {
+                id: 14,
+                title: "Fractura Abierta de Fémur sin Amputación",
+                env: "Urbano / Civil",
+                phase: "Tactical Field Care",
+                desc: "Motociclista con hueso femoral expuesto en tercio medio del muslo y sangrado arterial rutilante a borbotones.",
+                vitals: { hr: 122, bp: "92/58", avpu: "Alerta (A)", skin: "Fría" },
+                initialBloodLoss: 450,
+                bleedRate: 16,
+                steps: [
+                    {
+                        title: "Paso 1: Ubicación del TQ en Fractura",
+                        prompt: "Hay exposición ósea femoral y sangrado masivo. ¿Dónde colocas el torniquete?",
+                        options: [
+                            { text: "2 a 3 pulgadas por ENCIMA de la herida/fractura sobre tejido blando sano.", correct: true, feedback: "¡Correcto! Se aplica en tejido blando por encima de la herida o foco de fractura." },
+                            { text: "Directamente sobre el hueso expuesto.", correct: false, feedback: "¡Peligro! Colocar TQ sobre hueso expuesto causa daño tisular y falla en la oclusión." },
+                            { text: "No poner TQ porque hay fractura.", correct: false, feedback: "Incorrecto. La fractura femoral abierta es causa principal de exanguinación." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Inmovilización Posterior",
+                        prompt: "Controlado el sangrado con el TQ, ¿siguiente paso?",
+                        options: [
+                            { text: "Inmovilizar y ferulizar la extremidad para evitar que fragmentos óseos laceren más vasos.", correct: true, feedback: "¡Correcto! Ferulizar la pierna previene la reactivación del sangrado y shock doloroso." },
+                            { text: "Traccionar fuertemente con la mano.", correct: false, feedback: "Incorrecto. No realizar maniobras agresivas sin analgesia." },
+                            { text: "Doblar la pierna en ángulo de 90 grados.", correct: false, feedback: "Incorrecto. Empeora el desplazamiento de la fractura." }
+                        ]
+                    }
+                ],
+                debrief: "Las fracturas abiertas de fémur requieren TQ a 2-3 pulgadas por encima de la herida (evitando el foco óseo) y posterior inmovilización con férula."
+            },
+            {
+                id: 15,
+                title: "Herida por Esquirla en Región Glútea (Zona Unional)",
+                env: "Táctico / Desastre",
+                phase: "Tactical Field Care",
+                desc: "Esquirlas en glúteo mayor cerca de la escotadura ciática. Sangrado profundo muy abundante, adormecimiento en extremidad.",
+                vitals: { hr: 115, bp: "100/65", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 380,
+                bleedRate: 14,
+                steps: [
+                    {
+                        title: "Paso 1: Manejo Glúteo",
+                        prompt: "¿Cómo se maneja un sangrado masivo en la región glútea/pélvica posterior?",
+                        options: [
+                            { text: "Empaquetamiento profundo de herida con gasa hemostática y presión manual.", correct: true, feedback: "¡Correcto! La región glútea es una zona unional con arterias profundas; se maneja con wound packing." },
+                            { text: "Torniquete en la cintura.", correct: false, feedback: "Incorrecto. No existe compresión de cintura con TQ estándar." },
+                            { text: "Parche torácico.", correct: false, feedback: "Incorrecto. No hay neumotórax en los glúteos." }
+                        ]
+                    }
+                ],
+                debrief: "La región glútea es una zona unional donde las arterias glúteas profundas causan sangrado masivo. La técnica de elección es el empaquetamiento profundo."
+            },
+            {
+                id: 16,
+                title: "Laceración Radial con Falla de Primer TQ en Antebrazo",
+                env: "Urbano / Civil",
+                phase: "Stop The Bleed",
+                desc: "Laceración en muñeca. Se colocó un TQ en el antebrazo pero el sangrado no cesa y la mano está cianótica.",
+                vitals: { hr: 110, bp: "105/70", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 300,
+                bleedRate: 10,
+                steps: [
+                    {
+                        title: "Paso 1: Reubicación de TQ",
+                        prompt: "El TQ está en el antebrazo (dos huesos protegiendo arterias) y no se apretó bien. ¿Qué haces?",
+                        options: [
+                            { text: "Colocar un nuevo TQ en el brazo (por encima del codo, sobre el húmero) apretando la correa al máximo antes de girar el molinete.", correct: true, feedback: "¡Excelente! Los segmentos de dos huesos (antebrazo/pantorrilla) dificultan la oclusión. Moverlo al segmento de un solo hueso (brazo/muslo) resuelve el fallo." },
+                            { text: "Aflojar el TQ y dejar sangrar.", correct: false, feedback: "Incorrecto. Aflojar sin reubicar empeora el sangrado." },
+                            { text: "Poner una liga de hule.", correct: false, feedback: "Incorrecto. Inútil para sangrado radial arterial." }
+                        ]
+                    }
+                ],
+                debrief: "Si un TQ en antebrazo o pierna distal no detiene el sangrado, aplícalo en el segmento proximal de un solo hueso (brazo o muslo)."
+            },
+            {
+                id: 17,
+                title: "Prevención de la Tríada de la Muerte (Hipotermia)",
+                env: "Táctico / Intemperie",
+                phase: "Tactical Field Care (MARCnH)",
+                desc: "Hemostasia femoral controlada en una noche fría y lluviosa. Paciente con pulso débil, escalofríos y piel fría.",
+                vitals: { hr: 105, bp: "95/60", avpu: "Alerta (A)", skin: "Muy fría, pálida" },
+                initialBloodLoss: 900,
+                bleedRate: 0,
+                steps: [
+                    {
+                        title: "Paso 1: Importancia de la 'H' en MARCnH",
+                        prompt: "¿Por qué es crítico prevenir la hipotermia en pacientes con trauma severo?",
+                        options: [
+                            { text: "La hipotermia destruye la cascada de coagulación enzimática, incrementando la mortalidad (Tríada Letal: Hipotermia, Acidosis, Coagulopatía).", correct: true, feedback: "¡Correcto! La hipotermia anula la capacidad de coagulación. Prevenirla es vital." },
+                            { text: "Solo causa incomodidad leve pero no afecta la coagulación.", correct: false, feedback: "Incorrecto. La hipotermia en trauma aumenta dramáticamente la mortalidad." },
+                            { text: "Se debe enfriar al paciente para proteger órganos.", correct: false, feedback: "Incorrecto. La hipotermia terapéutica no aplica en shock traumático de campo." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Intervención Activa/Pasiva",
+                        prompt: "¿Qué acciones ejecutas inmediatamente?",
+                        options: [
+                            { text: "Retirar ropa mojada, colocar manta térmica/Ready-Heat, aislar del suelo frío y cubrir la cabeza.", correct: true, feedback: "¡Excelente! Reemplazar ropa húmeda, colocar barreras térmicas y aislar del suelo detiene la pérdida de calor." },
+                            { text: "Dar café caliente para beber.", correct: false, feedback: "Incorrecto. Jamás dar líquidos por vía oral en trauma." },
+                            { text: "Frotar las extremidades con nieve.", correct: false, feedback: "Incorrecto. Acelera peligrosamente el enfriamiento central." }
+                        ]
+                    }
+                ],
+                debrief: "La Tríada Letal comprende Hipotermia, Acidosis y Coagulopatía. Aislar al paciente del suelo y abrigarlo es imperativo en TCCC/TECC."
+            },
+            {
+                id: 18,
+                title: "Trauma Facial Grave con Sangrado a Vía Aérea",
+                env: "Urbano / Explosión",
+                phase: "Tactical Field Care",
+                desc: "Fractura masiva del macizo facial por aplastamiento. Sangrado abundante fluyendo hacia la faringe con gorgoteo respiratorio.",
+                vitals: { hr: 130, bp: "100/60", avpu: "Verbal (V)", skin: "Cianótica" },
+                initialBloodLoss: 300,
+                bleedRate: 8,
+                steps: [
+                    {
+                        title: "Paso 1: Drenaje Postural en Vía Aérea",
+                        prompt: "Sangrado facial compromete la ventilación (gorgoteo). ¿Qué posición es la de elección?",
+                        options: [
+                            { text: "Inclinado hacia adelante o en decúbito lateral para que la sangre drene fuera de la boca.", correct: true, feedback: "¡Correcto! Permitir que la gravedad drene la sangre evita la aspiración hacia la tráquea y pulmones." },
+                            { text: "Acostado boca arriba con la cabeza hacia atrás.", correct: false, feedback: "¡Peligro! La sangre fluirá directamente a la vía aérea provocando asfixia." },
+                            { text: "Empaquetar la garganta con gasa hemostática.", correct: false, feedback: "¡Error fatal! Asfixia directa por oclusión traqueal." }
+                        ]
+                    }
+                ],
+                debrief: "En traumas faciales con sangrado hacia la cavidad oral, mantén la vía aérea despejada mediante drenaje postural (lateral o inclinado hacia adelante)."
+            },
+            {
+                id: 19,
+                title: "Conversión de Torniquete en Evacuación Prolongada",
+                env: "Rural / TACEVAC",
+                phase: "Tactical Field Care / TACEVAC",
+                desc: "Traslado prolongado (>3 horas) con TQ en muslo por laceración de partes blandas sin amputación. Evacuación tardará 4 horas más.",
+                vitals: { hr: 90, bp: "115/75", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 500,
+                bleedRate: 0,
+                steps: [
+                    {
+                        title: "Paso 1: Criterios de Conversión",
+                        prompt: "¿Cuándo se puede intentar la conversión de un torniquete a vendaje compresivo?",
+                        options: [
+                            { text: "Si el paciente no está en shock, se puede monitorear la herida, NO hay amputación completa y han pasado menos de 6 horas.", correct: true, feedback: "¡Correcto! Las guías CoTCCC exigen ausencia de shock, control de herida, no amputación y <6 horas." },
+                            { text: "NUNCA se puede tocar un torniquete una vez colocado.", correct: false, feedback: "Incorrecto. Las guías modernas establecen la conversión si se cumplen condiciones de seguridad." },
+                            { text: "Quitar el TQ de golpe y dejar sin vendaje.", correct: false, feedback: "Incorrecto. Se debe aplicar vendaje compresivo ANTES de aflojar gradualmente el TQ." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Técnica Segura de Conversión",
+                        prompt: "¿Cuál es la secuencia correcta para ejecutar la conversión?",
+                        options: [
+                            { text: "Empaquetar la herida con gasa, aplicar vendaje compresivo, aflojar LENTAMENTE el TQ dejándolo colocado en su sitio.", correct: true, feedback: "¡Excelente! Nunca se retira físicamente el TQ por si falla la conversión; solo se afloja gradualmente tras asegurar la hemostasia." },
+                            { text: "Cortar la correa del TQ con tijeras de un solo golpe.", correct: false, feedback: "Incorrecto. Si el sangrado rebrota, inutilizaste el TQ." },
+                            { text: "Hacer ciclos de aflojar 10 min y apretar 10 min.", correct: false, feedback: "¡Peligro! El 'ciclado' de torniquetes libera toxinas e incrementa la mortalidad." }
+                        ]
+                    }
+                ],
+                debrief: "La conversión de TQ requiere vendaje hemostático previo y aflojado gradual, dejando el TQ colocado flojo por seguridad. NUNCA realizar ciclos periódicos."
+            },
+            {
+                id: 20,
+                title: "Triage Táctico Masivo (Múltiples Víctimas)",
+                env: "Urbano / Ataque Complejo",
+                phase: "Triage Masivo",
+                desc: "3 víctimas en explosión: Baja A (herida de tórax con murmullo presente), Baja B (amputación femoral con chorro arterial), Baja C (fallecido decapitado).",
+                vitals: { hr: 130, bp: "85/50", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 500,
+                bleedRate: 25,
+                steps: [
+                    {
+                        title: "Paso 1: Triage Inmediato",
+                        prompt: "¿A qué paciente atiendes de forma INMEDIATA en los primeros segundos?",
+                        options: [
+                            { text: "Baja B (Amputación femoral con sangrado arterial exanguinante).", correct: true, feedback: "¡Correcto! En triage táctico, la hemorragia exanguinante tiene prioridad absoluta inmediata (rojo tratable)." },
+                            { text: "Baja A (Herida de tórax).", correct: false, feedback: "Incorrecto. La hemorragia femoral mata en segundos y es la prioridad número uno." },
+                            { text: "Baja C (Decapitado).", correct: false, feedback: "Incorrecto. Paciente no viable (negro)." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Intervención Ágil",
+                        prompt: "Te aproximas a la Baja B. ¿Cuál es la acción más eficiente?",
+                        options: [
+                            { text: "Colocar un torniquete de emergencia en el muslo en menos de 30 segundos y avanzar a la siguiente baja.", correct: true, feedback: "¡Brillante! La colocación rápida de TQ salva a la Baja B permitiendo continuar el triage con las demás víctimas." },
+                            { text: "Quedarte 15 minutos tomando el pulso.", correct: false, feedback: "Incorrecto. En múltiples víctimas, la gestión del tiempo por baja es vital." },
+                            { text: "Iniciar RCP en la Baja C.", correct: false, feedback: "Incorrecto. El RCP no está indicado en trauma exanguinante en entorno táctico." }
+                        ]
+                    }
+                ],
+                debrief: "En escenarios de múltiples víctimas, prioriza las intervenciones que salvan vidas en segundos (como el torniquete) antes de avanzar."
+            },
+            /* Casos del 21 al 50 con variedad de escenarios (K9, geriátricos, montaña, desastres, etc.) */
+            {
+                id: 21,
+                title: "Accidente con Motosierra en Zona Remota de Montaña",
+                env: "Remoto / Silvestre",
+                phase: "Stop The Bleed / Prolonged Care",
+                desc: "Excursionista con corte profundo en muslo superior en zona boscosa apartada. Ayuda médica a 3 horas de distancia.",
+                vitals: { hr: 132, bp: "85/50", avpu: "Verbal (V)", skin: "Fría" },
+                initialBloodLoss: 550,
+                bleedRate: 15,
+                steps: [
+                    {
+                        title: "Paso 1: Control Inicial",
+                        prompt: "Sangrado masivo en muslo en zona remota. Acción inmediata:",
+                        options: [
+                            { text: "Colocar torniquete de extremidad CAT de forma inmediata 2-3 pulgadas arriba de la herida.", correct: true, feedback: "¡Correcto! Ante la distancia prolongada, el TQ inmediato detiene la exanguinación." },
+                            { text: "Esperar a que llegue el helicóptero.", correct: false, feedback: "Incorrecto. El tiempo de espera provocaría shock mortal." }
+                        ]
+                    },
+                    {
+                        title: "Paso 2: Aislamiento Térmico en Montaña",
+                        prompt: "Ambiente frío de montaña. ¿Qué medida tomas para evitar la tríada letal?",
+                        options: [
+                            { text: "Aislar al paciente del suelo con mochila/aislante y envolver en manta térmica de aluminio.", correct: true, feedback: "¡Correcto! Prevenir la hipotermia es vital en zonas frías y remotas." },
+                            { text: "Dar bebidas alcohólicas para calentar el cuerpo.", correct: false, feedback: "¡Peligro! El alcohol causa vasodilatación periférica y empeora el shock." }
+                        ]
+                    }
+                ],
+                debrief: "En zonas remotas, el TQ y el aislamiento térmico agresivo son la clave de supervivencia mientras se gestiona el rescate prolongado."
+            },
+            {
+                id: 22,
+                title: "Atentado con Explosivo en Estación de Metro",
+                env: "Urbano / Desastre Masivo",
+                phase: "Triage y Control de Masas",
+                desc: "Estación con múltiples heridos por metralla. Víctima con laceración arterial en brazo y shock incipiente.",
+                vitals: { hr: 125, bp: "90/60", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 400,
+                bleedRate: 15,
+                steps: [
+                    {
+                        title: "Paso 1: Autoaplicación y Asistencia",
+                        prompt: "La víctima tiene capacidad de cooperar. ¿Qué le indicas?",
+                        options: [
+                            { text: "Instruir al paciente consciente para que colabore aplicando presión directa o auto-colocándose el TQ si tiene sus manos libres.", correct: true, feedback: "¡Correcto! En incidentes con múltiples víctimas (Mass Casualty), fomentar la auto-asistencia maximiza los recursos." },
+                            { text: "Ignorarlo hasta terminar con otros pacientes.", correct: false, feedback: "Incorrecto. Una hemorragia tratable a tiempo evita una baja adicional." }
+                        ]
+                    }
+                ],
+                debrief: "En incidentes con víctimas en masa, instruir a los pacientes conscientes en auto-asistencia optimiza el tiempo de respuesta del rescatista."
+            },
+            {
+                id: 23,
+                title: "Herida por Arma Blanca en Axila de Oficial SWAT",
+                env: "Táctico / SWAT",
+                phase: "Tactical Field Care",
+                desc: "Oficial herido con cuchillo en la axila durante ingreso táctico. Hemorragia severa bajo el chaleco balístico.",
+                vitals: { hr: 140, bp: "80/40", avpu: "Alerta (A)", skin: "Sudorosa" },
+                initialBloodLoss: 600,
+                bleedRate: 20,
+                steps: [
+                    {
+                        title: "Paso 1: Retirada de Equipo y Empaquetamiento",
+                        prompt: "Retiras el chaleco en zona segura para exponer la axila. ¿Cómo actúas?",
+                        options: [
+                            { text: "Empaquetamiento profundo de la fosa axilar con gasa hemostática y presión manual por 3 minutos.", correct: true, feedback: "¡Correcto! Las zonas unionales como la axila requieren wound packing y compresión sostenida." },
+                            { text: "Colocar un torniquete alrededor del cuello.", correct: false, feedback: "¡Error letal! Los torniquetes nunca van en cuello." }
+                        ]
+                    }
+                ],
+                debrief: "Las lesiones axilares en operadores tácticos se resuelven descubriendo la zona, empaquetando profundamente y aplicando vendaje compresivo cruzado."
+            },
+            {
+                id: 24,
+                title: "Accidente Geriátrico con Esmeril Angular en Domicilio",
+                env: "Doméstico / Geriátrico",
+                phase: "Stop The Bleed",
+                desc: "Adulto mayor de 78 años sufre corte profundo en el muslo con esmeril angular. Coagulopatía basal por medicamentos anticoagulantes.",
+                vitals: { hr: 110, bp: "100/65", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 350,
+                bleedRate: 14,
+                steps: [
+                    {
+                        title: "Paso 1: Indicación de Torniquete en Adultos Mayores",
+                        prompt: "Debido a la fragilidad vascular y uso de anticoagulantes, ¿cuál es la mejor opción?",
+                        options: [
+                            { text: "Colocar un torniquete de extremidad de inmediato ante la imposibilidad de coagulación natural.", correct: true, feedback: "¡Correcto! En pacientes anticoagulados, el sangrado arterial no se detiene de forma natural; el TQ es indispensable." },
+                            { text: "Esperar que la presión directa simple detenga el sangrado por sí sola durante 20 minutos.", correct: false, feedback: "Incorrecto. Los anticoagulantes impiden la hemostasia espontánea." }
+                        ]
+                    }
+                ],
+                debrief: "En pacientes geriátricos con tratamiento anticoagulante, no confíe en la coagulación espontánea; aplique torniquete o empaquetamiento hemostático sin dudar."
+            },
+            {
+                id: 25,
+                title: "Herida por Proyectil en Perro de Trabajo K9 (Unidad Canina)",
+                env: "Táctico / K9",
+                phase: "K9 TCCC / Tactical Field Care",
+                desc: "Canino de trabajo K9 herido por disparo en la ingle trasera durante incursión táctica. Hemorragia masiva unional.",
+                vitals: { hr: 160, bp: "90/50", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 400,
+                bleedRate: 18,
+                steps: [
+                    {
+                        title: "Paso 1: Manejo Hemorrágico en Caninos K9",
+                        prompt: "Herida exanguinante en la ingle de un perro K9. ¿Cómo se procede según guías K9 TCCC?",
+                        options: [
+                            { text: "Empaquetamiento profundo de herida (Wound Packing) con gasa hemostática y presión manual sostenida.", correct: true, feedback: "¡Correcto! Las guías K9 TCCC indican empaquetamiento profundo para zonas unionales en caninos." },
+                            { text: "Poner un torniquete en la cola del perro.", correct: false, feedback: "Incorrecto. La cola no irriga la extremidad afectada." }
+                        ]
+                    }
+                ],
+                debrief: "Los principios de Stop The Bleed y TCCC se aplican también a caninos de trabajo (K9 TCCC), utilizando empaquetamiento profundo en zonas unionales."
+            },
+            {
+                id: 26,
+                title: "Accidente en Fábrica Química con Laceración de Antebrazo",
+                env: "Industrial / Químico",
+                phase: "Stop The Bleed",
+                desc: "Operario con corte profundo en antebrazo expuesto a sustancias químicas corrosivas leves. Sangrado arterial moderado.",
+                vitals: { hr: 100, bp: "120/80", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 250,
+                bleedRate: 8,
+                steps: [
+                    {
+                        title: "Paso 1: Control con Contaminación Química",
+                        prompt: "Hay riesgo químico pero el sangrado es arterial activo. ¿Qué haces primero?",
+                        options: [
+                            { text: "Colocar el torniquete inmediatamente para frenar la exanguinación, priorizando la vida sobre el riesgo químico superficial.", correct: true, feedback: "¡Correcto! La hemorragia masiva mata en minutos; el TQ va primero antes de la descontaminación." },
+                            { text: "Lavar la herida con agua durante 30 minutos antes de tocar la sangre.", correct: false, feedback: "Incorrecto. El paciente se desangrará durante el lavado." }
+                        ]
+                    }
+                ],
+                debrief: "La hemorragia exanguinante siempre tiene prioridad sobre cualquier otro riesgo ambiental o químico secundario."
+            },
+            {
+                id: 27,
+                title: "Herida Penetrante Abdominal por Objeto Punzocortante",
+                env: "Urbano / Civil",
+                phase: "Tactical Field Care",
+                desc: "Víctima con puñalada en flanco derecho. Objeto extraño (cuchillo) todavía incrustado en el abdomen. Sangrado moderado alrededor.",
+                vitals: { hr: 110, bp: "105/70", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 300,
+                bleedRate: 10,
+                steps: [
+                    {
+                        title: "Paso 1: Manejo de Objeto Incrustado",
+                        prompt: "Hay un cuchillo incrustado en el abdomen. ¿Qué acción debes tomar?",
+                        options: [
+                            { text: "Dejar el objeto incrustado en su lugar, estabilizarlo con apósitos alrededor y no extraerlo.", correct: true, feedback: "¡Correcto! Nunca se retira un objeto incrustado en el campo ya que actúa como tapón vascular." },
+                            { text: "Extraer el cuchillo con un tirón rápido para limpiar la herida.", correct: false, feedback: "Incorrecto. Extraerlo liberará el taponamiento y causará hemorragia masiva fatal." }
+                        ]
+                    }
+                ],
+                debrief: "Los objetos extraños incrustados nunca deben retirarse en el campo; se deben estabilizar alrededor con apósitos."
+            },
+            {
+                id: 28,
+                title: "Accidente de Aviación Ligera: Trauma Múltiple",
+                env: "Remoto / Aérea",
+                phase: "TACEVAC / TFC",
+                desc: "Piloto rescatado de avioneta siniestrada. Amputación bilateral de extremidades inferiores con doble sangrado arterial.",
+                vitals: { hr: 150, bp: "70/35", avpu: "Dolor (P)", skin: "Muy pálida y fría" },
+                initialBloodLoss: 1100,
+                bleedRate: 35,
+                steps: [
+                    {
+                        title: "Paso 1: Doble Torniquete Bilateral",
+                        prompt: "Ambas piernas presentan amputación traumática. ¿Cómo procedes?",
+                        options: [
+                            { text: "Colocar un torniquete en cada extremidad afectada (dos TQ en total) de forma inmediata.", correct: true, feedback: "¡Correcto! Cada extremidad con sangrado exanguinante requiere su propio torniquete." },
+                            { text: "Poner un solo torniquete en la cintura para apretar las dos piernas.", correct: false, feedback: "Incorrecto. No existe tal dispositivo." }
+                        ]
+                    }
+                ],
+                debrief: "En amputaciones bilaterales, se aplica un torniquete independiente en cada extremidad afectada de forma inmediata."
+            },
+            {
+                id: 29,
+                title: "Herida por Arma Blanca en Cuello Anterior (Tráquea)",
+                env: "Urbano / Civil",
+                phase: "Tactical Field Care",
+                desc: "Herida cortante horizontal en cuello anterior sobre la tráquea. Salida de burbujas de aire y sangrado venoso/arterial.",
+                vitals: { hr: 120, bp: "95/60", avpu: "Alerta (A)", skin: "Normal" },
+                initialBloodLoss: 400,
+                bleedRate: 15,
+                steps: [
+                    {
+                        title: "Paso 1: Manejo de Herida Traqueal",
+                        prompt: "Hay fuga de aire por la tráquea y sangrado. ¿Cómo manejas la herida?",
+                        options: [
+                            { text: "Aplicar un apósito oclusivo no adherente semi-fijado para permitir la salida de aire y controlar el sangrado sin asfixiar.", correct: true, feedback: "¡Correcto! Las heridas traqueales requieren apósitos que eviten la entrada masiva de aire y sangrado pero permitan exhalar." },
+                            { text: "Sellar herméticamente con cinta adhesiva todo el cuello de lado a lado.", correct: false, feedback: "¡Peligro letal! Sellar herméticamente el cuello causará enfisema subcutáneo masivo y asfixia." }
+                        ]
+                    }
+                ],
+                debrief: "Las lesiones traqueales requieren apósitos semi-oclusivos que contengan el sangrado sin sellar herméticamente la vía aérea."
+            },
+            {
+                id: 30,
+                title: "Ataque con Arma Blanca en Estación de Tren",
+                env: "Urbano / Civil",
+                phase: "Stop The Bleed",
+                desc: "Víctima con corte en la arteria femoral superficial en el muslo medio. Sangrado abundante pulsátil.",
+                vitals: { hr: 128, bp: "90/55", avpu: "Alerta (A)", skin: "Pálida" },
+                initialBloodLoss: 450,
+                bleedRate: 16,
+                steps: [
+                    {
+                        title: "Paso 1: Aplicación Rápida de CAT",
+                        prompt: "Sangrado pulsátil en muslo medio. ¿Acción?",
+                        options: [
+                            { text: "Colocar torniquete CAT a 2-3 pulgadas por encima de la herida sobre el muslo.", correct: true, feedback: "¡Correcto! Estándar Stop The Bleed para extremidades." },
+                            { text: "Hacer un torniquete con el cinturón del pantalón flojo.", correct: false, feedback: "Incorrecto. Los cinturones flojos actúan como torniquetes venosos y agravan el sangrado." }
+                        ]
+                    }
+                ],
+                debrief: "El uso rápido del torniquete comercial CAT en muslo medio es la intervención estándar probada para salvar vidas."
+            },
+            /* Casos del 31 al 50 adicionales para completar la robustez exacta de 50 */
+            {
+                id: 31, title: "Herida por Esquirla en Antebrazo", env: "Táctico", phase: "TFC",
+                desc: "Esquirla metálica en antebrazo con sangrado arterial moderado.",
+                vitals: { hr: 100, bp: "110/70", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 200, bleedRate: 8,
+                steps: [{ title: "Control de Antebrazo", prompt: "Sangrado en antebrazo que no cede a presión.", options: [{ text: "Colocar TQ en brazo (por encima del codo) o empaquetar si procede.", correct: true, feedback: "¡Correcto!" }, { text: "Ignorar.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Manejo de extremidades con TQ proximal."
+            },
+            {
+                id: 32, title: "Trauma por Aplastamiento de Mano en Prensa", env: "Industrial", phase: "Stop The Bleed",
+                desc: "Mano aplastada con amputación parcial de dedos y sangrado masivo.",
+                vitals: { hr: 110, bp: "100/60", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 300, bleedRate: 10,
+                steps: [{ title: "Control en Muñeca/Brazo", prompt: "Amputación distal múltiple con sangrado.", options: [{ text: "Aplicar TQ en antebrazo o brazo según eficacia y empaquetar.", correct: true, feedback: "¡Correcto!" }, { text: "Vendar con curita.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Control hemostático en extremidades superiores."
+            },
+            {
+                id: 33, title: "Herida Penetrante en Flanco por Arma Blanca", env: "Urbano", phase: "TFC",
+                desc: "Puñalada en flanco con sangrado moderado y estabilidad hemodinámica.",
+                vitals: { hr: 95, bp: "120/80", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 250, bleedRate: 7,
+                steps: [{ title: "Manejo de Flanco", prompt: "Herida en flanco abdominal.", options: [{ text: "Empaquetamiento con gasa hemostática y vendaje compresivo.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete en la cintura.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Wound packing para heridas penetrantes en tronco lateral."
+            },
+            {
+                id: 34, title: "Accidente con Vidrio en Cuello Lateral", env: "Doméstico", phase: "Stop The Bleed",
+                desc: "Corte lateral en cuello con vaso venoso yugular lacerado.",
+                vitals: { hr: 115, bp: "95/60", avpu: "Alerta (A)", skin: "Pálida" }, initialBloodLoss: 400, bleedRate: 14,
+                steps: [{ title: "Cuello Lateral", prompt: "Sangrado yugular profuso.", options: [{ text: "Empaquetamiento profundo + presión directa + vendaje en 8 axilar.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete en cuello.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Manejo unional de cuello."
+            },
+            {
+                id: 35, title: "Explosión en Zona Rural: Múltiples Esquirla", env: "Desastre", phase: "TFC",
+                desc: "Múltiples heridas por esquirla en extremidades con sangrado en pierna izquierda.",
+                vitals: { hr: 130, bp: "85/50", avpu: "Verbal (V)", skin: "Fría" }, initialBloodLoss: 500, bleedRate: 18,
+                steps: [{ title: "Tq en Pierna", prompt: "Sangrado activo en pierna.", options: [{ text: "Colocar TQ CAT a 2-3 pulgadas de la lesión.", correct: true, feedback: "¡Correcto!" }, { text: "Aplicar hielo.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Torniquete prioritario en extremidad afectada."
+            },
+            {
+                id: 36, title: "Herida por Proyectil en Hombro (Axila)", env: "Táctico", phase: "TFC",
+                desc: "Disparo en región del hombro con salida en axila. Sangrado profuso.",
+                vitals: { hr: 125, bp: "90/55", avpu: "Alerta (A)", skin: "Pálida" }, initialBloodLoss: 450, bleedRate: 16,
+                steps: [{ title: "Axila", prompt: "Zona unional axilar.", options: [{ text: "Empaquetamiento de fosa axilar y vendaje cruzado.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete de brazo alto.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Empaquetamiento unional axilar."
+            },
+            {
+                id: 37, title: "Accidente de Tránsito con Amputación de Mano", env: "Vehicular", phase: "Stop The Bleed",
+                desc: "Amputación traumática de mano por accidente de tráfico.",
+                vitals: { hr: 120, bp: "95/60", avpu: "Alerta (A)", skin: "Fría" }, initialBloodLoss: 400, bleedRate: 15,
+                steps: [{ title: "Mano Amputada", prompt: "Amputación a nivel de muñeca.", options: [{ text: "Colocar torniquete en el brazo por encima del codo.", correct: true, feedback: "¡Correcto!" }, { text: "Vendar solo con gasa floja.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Uso de TQ en brazo para amputación de mano."
+            },
+            {
+                id: 38, title: "Herida por Arma Blanca en Muslo Superior", env: "Urbano", phase: "Stop The Bleed",
+                desc: "Puñalada en muslo alto con sangrado arterial constante.",
+                vitals: { hr: 118, bp: "100/65", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 350, bleedRate: 12,
+                steps: [{ title: "Muslo Alto", prompt: "Sangrado femoral superficial.", options: [{ text: "Aplicar TQ CAT a 2-3 pulgadas.", correct: true, feedback: "¡Correcto!" }, { text: "Poner torniquete en el tobillo.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Aplicación de TQ proximal en muslo."
+            },
+            {
+                id: 39, title: "Accidente con Sierra Circular en Pantorrilla", env: "Industrial", phase: "Stop The Bleed",
+                desc: "Corte profundo en pantorrilla con sangrado arterial tibial.",
+                vitals: { hr: 110, bp: "105/70", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 300, bleedRate: 10,
+                steps: [{ title: "Pantorrilla", prompt: "Sangrado en pantorrilla (dos huesos).", options: [{ text: "Colocar TQ en muslo si falla el de pantorrilla, o empaquetar.", correct: true, feedback: "¡Correcto!" }, { text: "Dejar sin TQ.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Manejo de extremidades inferiores distales."
+            },
+            {
+                id: 40, title: "Explosión con Herida Abdominal Abierta", env: "Desastre", phase: "TFC",
+                desc: "Explosión con trauma abdominal y hemorragia interna/externa moderada.",
+                vitals: { hr: 135, bp: "80/50", avpu: "Verbal (V)", skin: "Fría" }, initialBloodLoss: 600, bleedRate: 20,
+                steps: [{ title: "Abdomen", prompt: "Trauma abdominal masivo.", options: [{ text: "Apósito estéril húmedo y manejo de shock/hipotermia.", correct: true, feedback: "¡Correcto!" }, { text: "Empaquetar abdomen con gasa hemostática.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Manejo de trauma abdominal abierto sin empaquetamiento."
+            },
+            {
+                id: 41, title: "Herida Penetrante en Torax Izquierdo", env: "Táctico", phase: "TFC",
+                desc: "Impacto balístico en tórax izquierdo con neumotórax abierto.",
+                vitals: { hr: 120, bp: "90/60", avpu: "Alerta (A)", skin: "Pálida" }, initialBloodLoss: 250, bleedRate: 8,
+                steps: [{ title: "Tórax Izquierdo", prompt: "Herida soplante en tórax.", options: [{ text: "Parche torácico ventilado.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete en brazo izquierdo.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Uso de parche torácico ventilado."
+            },
+            {
+                id: 42, title: "Ataque Múltiple con Cuchillo en Vía Pública", env: "Urbano", phase: "Stop The Bleed",
+                desc: "Múltiples cortes en brazos con sangrado moderado-severo.",
+                vitals: { hr: 125, bp: "95/60", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 400, bleedRate: 14,
+                steps: [{ title: "Brazos Múltiples", prompt: "Sangrado en ambos brazos.", options: [{ text: "Colocar torniquetes en ambos brazos afectados.", correct: true, feedback: "¡Correcto!" }, { text: "Usar un solo TQ para los dos brazos.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Torniquetes independientes para lesiones múltiples."
+            },
+            {
+                id: 43, title: "Accidente con Maquinaria Agrícola", env: "Rural", phase: "Stop The Bleed",
+                desc: "Atrapamiento y desgarro en miembro superior con sangrado masivo.",
+                vitals: { hr: 130, bp: "85/50", avpu: "Alerta (A)", skin: "Fría" }, initialBloodLoss: 500, bleedRate: 18,
+                steps: [{ title: "Maquinaria Agrícola", prompt: "Desgarro masivo en brazo.", options: [{ text: "TQ en brazo + empaquetamiento si hay zona unional proximal.", correct: true, feedback: "¡Correcto!" }, { text: "Esperar rescate sin TQ.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Control inmediato en desgarros industriales."
+            },
+            {
+                id: 44, title: "Herida por Arma de Fuego en Glúteo", env: "Urbano", phase: "TFC",
+                desc: "Disparo en región glútea profunda con sangrado arterial pulsátil.",
+                vitals: { hr: 115, bp: "100/65", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 380, bleedRate: 12,
+                steps: [{ title: "Glúteo", prompt: "Zona unional glútea.", options: [{ text: "Empaquetamiento profundo con gasa hemostática + presión directa.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete en pierna.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Wound packing en región glútea."
+            },
+            {
+                id: 45, title: "Accidente de Tránsito con Fractura Expuesta", env: "Vehicular", phase: "Stop The Bleed",
+                desc: "Fractura expuesta de tibia con sangrado arterial profuso.",
+                vitals: { hr: 122, bp: "92/58", avpu: "Alerta (A)", skin: "Fría" }, initialBloodLoss: 450, bleedRate: 15,
+                steps: [{ title: "Fractura Expuesta", prompt: "Tibia fracturada expuesta con sangrado.", options: [{ text: "TQ a 2-3 pulgadas por encima de la fractura.", correct: true, feedback: "¡Correcto!" }, { text: "TQ directo sobre el hueso.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "TQ proximal sobre tejido blando en fractura expuesta."
+            },
+            {
+                id: 46, title: "Herida Penetrante en Cuello Posterior", env: "Táctico", phase: "TFC",
+                desc: "Lesión por esquirla en región cervical posterior con sangrado abundante.",
+                vitals: { hr: 110, bp: "110/70", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 300, bleedRate: 10,
+                steps: [{ title: "Cuello Posterior", prompt: "Zona cervical posterior.", options: [{ text: "Empaquetamiento y presión directa.", correct: true, feedback: "¡Correcto!" }, { text: "Torniquete en cuello.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Control en zona cervical."
+            },
+            {
+                id: 47, title: "Explosión con Lesión en Antebrazo", env: "Desastre", phase: "TFC",
+                desc: "Antebrazo destrozado por explosivo improvisado.",
+                vitals: { hr: 128, bp: "90/55", avpu: "Alerta (A)", skin: "Fría" }, initialBloodLoss: 420, bleedRate: 15,
+                steps: [{ title: "Antebrazo Destrozado", prompt: "Extremidad superior severamente dañada.", options: [{ text: "TQ en brazo alto (por encima del codo).", correct: true, feedback: "¡Correcto!" }, { text: "TQ en la muñeca flojo.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Uso de TQ en brazo para lesiones graves de antebrazo."
+            },
+            {
+                id: 48, title: "Ataque con Arma Blanca en Axila", env: "Urbano", phase: "Stop The Bleed",
+                desc: "Corte profundo en axila por asaltante.",
+                vitals: { hr: 135, bp: "85/50", avpu: "Verbal (V)", skin: "Sudorosa" }, initialBloodLoss: 550, bleedRate: 19,
+                steps: [{ title: "Axila Asalto", prompt: "Hemorragia axilar masiva.", options: [{ text: "Empaquetamiento profundo axilar + vendaje en 8.", correct: true, feedback: "¡Correcto!" }, { text: "Parche torácico.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Wound packing axilar obligatorio."
+            },
+            {
+                id: 49, title: "Accidente con Vidrios en Muslo", env: "Doméstico", phase: "Stop The Bleed",
+                desc: "Gran corte en muslo por caída sobre mampara de vidrio.",
+                vitals: { hr: 115, bp: "100/65", avpu: "Alerta (A)", skin: "Normal" }, initialBloodLoss: 380, bleedRate: 12,
+                steps: [{ title: "Muslo Vidrio", prompt: "Sangrado femoral.", options: [{ text: "Torniquete CAT a 2-3 pulgadas del pliegue superior de la herida.", correct: true, feedback: "¡Correcto!" }, { text: "Vendar con gasa sin presionar.", correct: false, feedback: "Incorrecto." }] }],
+                debrief: "Uso de TQ en muslo."
+            },
+            {
+                id: 50, title: "Simulación Final: Polytrauma Complejo Integral", env: "Táctico / Examen", phase: "TFC Integral",
+                desc: "Evaluación final de cierre: Amputación de pierna, herida en tórax y paciente con alteración de consciencia.",
+                vitals: { hr: 150, bp: "70/40", avpu: "Dolor (P)", skin: "Muy pálida y fría" }, initialBloodLoss: 950, bleedRate: 35,
+                steps: [
+                    {
+                        title: "Paso 1: Secuencia MARCnH Completa",
+                        prompt: "Ante múltiples lesiones críticas, ¿cuál es el orden correcto MARCnH?",
+                        options: [
+                            { text: "1. TQ en pierna (M), 2. NPA/Posición (A), 3. Parche torácico (R), 4. Prevención hipotermia (H).", correct: true, feedback: "¡Correcto! Has aplicado con maestría la secuencia íntegra MARCnH del protocolo DoD Stop the Bleed y TCCC." },
+                            { text: "Atender primero la hipotermia y dejar el sangrado para el final.", correct: false, feedback: "Incorrecto. La hemorragia exanguinante (M) siempre va primero." }
+                        ]
+                    }
+                ],
+                debrief: "¡Felicitaciones! Has completado los 50 casos del simulador aplicando rigurosamente los estándares oficiales del Departamento de Defensa (DoD) Stop the Bleed, TCCC y TECC."
+            }
+        ];
+
+        /* ==========================================================================
+           GAME ENGINE & STATE MANAGEMENT (50 SCENARIOS)
+           ========================================================================== */
+        let state = {
+            mode: 'practice',
+            currentScenarioIdx: 0,
+            currentStepIdx: 0,
+            survived: 0,
+            deaths: 0,
+            score: 0,
+            accumulatedBloodLoss: 0,
+            currentCaseBloodLoss: 0,
+            timer: null,
+            timeLeft: 25,
+            errorsList: [],
+            isStepAnswered: false
+        };
+
+        // DOM References
+        const screenWelcome = document.getElementById('screen-welcome');
+        const screenSim = document.getElementById('screen-sim');
+        const screenCaseSummary = document.getElementById('screen-case-summary');
+        const screenFinal = document.getElementById('screen-final');
+        const headerStats = document.getElementById('header-stats');
+
+        const statSurvived = document.getElementById('stat-survived');
+        const statDeaths = document.getElementById('stat-deaths');
+        const statScore = document.getElementById('stat-score');
+        const statProgress = document.getElementById('stat-progress');
+
+        const caseNumber = document.getElementById('case-number');
+        const caseEnvironment = document.getElementById('case-environment');
+        const caseTitle = document.getElementById('case-title');
+        const caseDescription = document.getElementById('case-description');
+        const casePhase = document.getElementById('case-phase');
+
+        const bloodLossText = document.getElementById('blood-loss-text');
+        const bloodLossBar = document.getElementById('blood-loss-bar');
+        const vitalHr = document.getElementById('vital-hr');
+        const vitalBp = document.getElementById('vital-bp');
+        const vitalAvpu = document.getElementById('vital-avpu');
+        const vitalSkin = document.getElementById('vital-skin');
+        const bleedingSiteText = document.getElementById('bleeding-site-text');
+
+        const stepTitle = document.getElementById('step-title');
+        const stepPrompt = document.getElementById('step-prompt');
+        const optionsContainer = document.getElementById('options-container');
+        const timerDisplay = document.getElementById('timer-display');
+        const timeLeftSpan = document.getElementById('time-left');
+
+        const decisionPanelCard = document.getElementById('decision-panel-card');
+        const feedbackCard = document.getElementById('feedback-card');
+        const feedbackHeader = document.getElementById('feedback-header');
+        const feedbackText = document.getElementById('feedback-text');
+        const btnNextStep = document.getElementById('btn-next-step');
+
+        document.getElementById('btn-mode-practice').addEventListener('click', () => startSimulation('practice'));
+        document.getElementById('btn-mode-exam').addEventListener('click', () => startSimulation('exam'));
+        document.getElementById('btn-restart').addEventListener('click', restartAll);
+        document.getElementById('btn-restart-final').addEventListener('click', restartAll);
+        btnNextStep.addEventListener('click', handleNextStep);
+        document.getElementById('btn-next-case').addEventListener('click', loadNextCase);
+
+        function startSimulation(selectedMode) {
+            state.mode = selectedMode;
+            state.currentScenarioIdx = 0;
+            state.survived = 0;
+            state.deaths = 0;
+            state.score = 0;
+            state.errorsList = [];
+
+            screenWelcome.classList.add('hidden');
+            screenFinal.classList.add('hidden');
+            screenCaseSummary.classList.add('hidden');
+            screenSim.classList.remove('hidden');
+            headerStats.classList.remove('hidden');
+
+            updateGlobalStatsUI();
+            loadScenario(state.currentScenarioIdx);
+        }
+
+        function restartAll() {
+            clearInterval(state.timer);
+            screenSim.classList.add('hidden');
+            screenCaseSummary.classList.add('hidden');
+            screenFinal.classList.add('hidden');
+            screenWelcome.classList.remove('hidden');
+            headerStats.classList.add('hidden');
+        }
+
+        function updateGlobalStatsUI() {
+            statSurvived.textContent = state.survived;
+            statDeaths.textContent = state.deaths;
+            statScore.textContent = state.score;
+            statProgress.textContent = `${state.currentScenarioIdx + (screenSim.classList.contains('hidden') ? 0 : 1)}/50`;
+        }
+
+        function loadScenario(idx) {
+            const scenario = scenarios[idx];
+            state.currentStepIdx = 0;
+            state.currentCaseBloodLoss = scenario.initialBloodLoss;
+            state.isStepAnswered = false;
+
+            caseNumber.textContent = `CASO ${String(scenario.id).padStart(2, '0')} / 50`;
+            caseEnvironment.innerHTML = `<i class="fa-solid fa-map-pin"></i> ${scenario.env}`;
+            caseTitle.textContent = scenario.title;
+            caseDescription.textContent = scenario.desc;
+            casePhase.textContent = scenario.phase;
+
+            vitalHr.textContent = `${scenario.vitals.hr} BPM`;
+            vitalBp.textContent = scenario.vitals.bp;
+            vitalAvpu.textContent = scenario.vitals.avpu;
+            vitalSkin.textContent = scenario.vitals.skin;
+            bleedingSiteText.textContent = `Hemorragia activa identificada en el escenario clínico.`;
+
+            updateBloodUI();
+            renderStep();
+
+            if (state.mode === 'exam') {
+                timerDisplay.classList.remove('hidden');
+                startStepTimer();
+            } else {
+                timerDisplay.classList.add('hidden');
+            }
+        }
+
+        function updateBloodUI() {
+            const maxBlood = 5000;
+            const loss = Math.min(maxBlood, state.currentCaseBloodLoss);
+            const percentage = Math.min(100, (loss / maxBlood) * 100);
+
+            bloodLossText.textContent = `${Math.round(loss)} ml / ${maxBlood} ml`;
+            bloodLossBar.style.width = `${percentage}%`;
+
+            if (loss > 2000) {
+                vitalBp.textContent = "60/30 (Crítico)";
+                vitalBp.className = "text-xl font-mono font-bold text-dod-red animate-pulse";
+                vitalHr.textContent = "155 BPM";
+            } else if (loss > 1200) {
+                vitalBp.textContent = "80/40 (Hipotensión)";
+                vitalBp.className = "text-xl font-mono font-bold text-amber-400";
+            }
+        }
+
+        function startStepTimer() {
+            clearInterval(state.timer);
+            state.timeLeft = 25;
+            timeLeftSpan.textContent = state.timeLeft;
+
+            state.timer = setInterval(() => {
+                state.timeLeft--;
+                timeLeftSpan.textContent = state.timeLeft;
+
+                state.currentCaseBloodLoss += scenarios[state.currentScenarioIdx].bleedRate;
+                updateBloodUI();
+
+                if (state.timeLeft <= 0) {
+                    clearInterval(state.timer);
+                    handleOptionSelect(null, true);
+                }
+            }, 1000);
+        }
+
+        function renderStep() {
+            const scenario = scenarios[state.currentScenarioIdx];
+            const step = scenario.steps[state.currentStepIdx];
+
+            stepTitle.innerHTML = `<i class="fa-solid fa-list-check text-amber-400"></i> ${step.title}`;
+            stepPrompt.textContent = step.prompt;
+
+            feedbackCard.classList.add('hidden');
+            decisionPanelCard.classList.remove('correct-flash', 'incorrect-flash');
+            optionsContainer.innerHTML = '';
+
+            step.options.forEach((opt, oIdx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full p-4 rounded-xl bg-dod-dark hover:bg-dod-border border border-dod-border text-left text-xs sm:text-sm text-slate-100 transition font-medium flex items-start gap-3 group shadow-sm";
+                btn.innerHTML = `
+                    <span class="w-6 h-6 rounded-full bg-dod-card text-slate-300 border border-slate-600 flex items-center justify-center text-xs font-bold shrink-0 group-hover:border-amber-400 group-hover:text-amber-400">
+                        ${String.fromCharCode(65 + oIdx)}
+                    </span>
+                    <span class="mt-0.5 leading-relaxed">${opt.text}</span>
+                `;
+                btn.addEventListener('click', () => handleOptionSelect(opt, false));
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleOptionSelect(selectedOpt, isTimeout = false) {
+            if (state.isStepAnswered) return;
+            state.isStepAnswered = true;
+            clearInterval(state.timer);
+
+            const scenario = scenarios[state.currentScenarioIdx];
+            const currentStep = scenario.steps[state.currentStepIdx];
+            const isCorrect = selectedOpt ? selectedOpt.correct : false;
+
+            const optionBtns = optionsContainer.querySelectorAll('button');
+            optionBtns.forEach(btn => btn.disabled = true);
+
+            if (isCorrect) {
+                state.score += 100;
+                decisionPanelCard.classList.add('correct-flash');
+                if (state.mode === 'practice') {
+                    showFeedback(true, selectedOpt.feedback);
+                } else {
+                    setTimeout(handleNextStep, 800);
+                }
+            } else {
+                state.currentCaseBloodLoss += 350;
+                updateBloodUI();
+                decisionPanelCard.classList.add('incorrect-flash');
+
+                const errorMsg = isTimeout 
+                    ? `Tiempo agotado en "${currentStep.title}"`
+                    : (selectedOpt ? selectedOpt.feedback : "Acción incorrecta según protocolo DoD.");
+                
+                state.errorsList.push({
+                    caseTitle: scenario.title,
+                    stepTitle: currentStep.title,
+                    feedback: errorMsg
+                });
+
+                if (state.mode === 'practice') {
+                    showFeedback(false, isTimeout ? "¡TIEMPO AGOTADO! La demora produjo mayor pérdida de sangre exanguinante." : selectedOpt.feedback);
+                } else {
+                    setTimeout(handleNextStep, 800);
+                }
+            }
+
+            updateGlobalStatsUI();
+        }
+
+        function showFeedback(isCorrect, text) {
+            feedbackCard.classList.remove('hidden');
+            if (isCorrect) {
+                feedbackCard.className = "mt-6 p-4 rounded-xl border border-emerald-600 bg-emerald-950/60 text-emerald-200 space-y-2 shadow-lg";
+                feedbackHeader.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i> <span class="text-white font-bold">¡RESPUESTA CORRECTA! (+100 Pts) - Protocolo DoD Válido</span>`;
+            } else {
+                feedbackCard.className = "mt-6 p-4 rounded-xl border border-dod-red bg-red-950/80 text-red-200 space-y-2 shadow-lg";
+                feedbackHeader.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-dod-red text-lg"></i> <span class="text-white font-bold">¡RESPUESTA INCORRECTA! (+350 ml pérdida sanguínea)</span>`;
+            }
+            feedbackText.textContent = text;
+        }
+
+        function handleNextStep() {
+            const scenario = scenarios[state.currentScenarioIdx];
+            state.currentStepIdx++;
+
+            if (state.currentStepIdx < scenario.steps.length) {
+                state.isStepAnswered = false;
+                renderStep();
+                if (state.mode === 'exam') startStepTimer();
+            } else {
+                finishScenario();
+            }
+        }
+
+        function finishScenario() {
+            clearInterval(state.timer);
+            const scenario = scenarios[state.currentScenarioIdx];
+            const isPatientAlive = state.currentCaseBloodLoss < 2200;
+
+            if (isPatientAlive) {
+                state.survived++;
+            } else {
+                state.deaths++;
+            }
+
+            screenSim.classList.add('hidden');
+            screenCaseSummary.classList.remove('hidden');
+
+            const summaryIcon = document.getElementById('summary-icon');
+            const summaryTitle = document.getElementById('summary-title');
+            const summaryResultText = document.getElementById('summary-result-text');
+            const summaryBloodLoss = document.getElementById('summary-blood-loss');
+            const summaryPoints = document.getElementById('summary-points');
+            const summaryDebriefText = document.getElementById('summary-debrief-text');
+
+            if (isPatientAlive) {
+                summaryIcon.className = "inline-block p-4 rounded-full bg-emerald-950 border border-emerald-600 text-emerald-400 mb-1";
+                summaryIcon.innerHTML = `<i class="fa-solid fa-user-check text-4xl"></i>`;
+                summaryTitle.textContent = "¡PACIENTE ESTABILIZADO Y CON VIDA!";
+                summaryTitle.className = "text-2xl font-black text-emerald-400";
+                summaryResultText.textContent = "Supervivencia Exitosa";
+                summaryResultText.className = "font-bold text-emerald-400";
+            } else {
+                summaryIcon.className = "inline-block p-4 rounded-full bg-rose-950 border border-dod-red text-dod-red mb-1";
+                summaryIcon.innerHTML = `<i class="fa-solid fa-skull text-4xl"></i>`;
+                summaryTitle.textContent = "PACIENTE FALLECIDO EN ESCENA";
+                summaryTitle.className = "text-2xl font-black text-dod-red";
+                summaryResultText.textContent = "Exanguinación Irreversible / Shock Hipovolémico Fetal";
+                summaryResultText.className = "font-bold text-dod-red";
+            }
+
+            summaryBloodLoss.textContent = `${Math.round(state.currentCaseBloodLoss)} ml`;
+            summaryPoints.textContent = `Puntaje Acumulado: ${state.score} pts`;
+            summaryDebriefText.textContent = scenario.debrief;
+
+            updateGlobalStatsUI();
+        }
+
+        function loadNextCase() {
+            state.currentScenarioIdx++;
+            if (state.currentScenarioIdx < scenarios.length) {
+                screenCaseSummary.classList.add('hidden');
+                screenSim.classList.remove('hidden');
+                loadScenario(state.currentScenarioIdx);
+            } else {
+                showFinalResults();
+            }
+        }
+
+        function showFinalResults() {
+            screenCaseSummary.classList.add('hidden');
+            screenSim.classList.add('hidden');
+            screenFinal.classList.remove('hidden');
+
+            document.getElementById('final-survived').textContent = `${state.survived} / 50`;
+            document.getElementById('final-deaths').textContent = `${state.deaths}`;
+            
+            const accuracy = Math.round((state.survived / 50) * 100);
+            document.getElementById('final-accuracy').textContent = `${accuracy}%`;
+            document.getElementById('final-score').textContent = `${state.score} pts`;
+
+            const rankTitle = document.getElementById('final-rank-title');
+            const rankDesc = document.getElementById('final-rank-desc');
+
+            if (state.survived >= 45) {
+                rankTitle.textContent = "INSTRUCTOR EXPERTO STOP THE BLEED (DoD / TCCC)";
+                rankTitle.className = "text-xl font-extrabold text-emerald-400";
+                rankDesc.textContent = "Has completado con sobresaliente los 50 casos del simulador. Dominio absoluto de los protocolos oficiales DoD, jerarquía MARCnH, torniquetes y empaquetamiento unional.";
+            } else if (state.survived >= 35) {
+                rankTitle.textContent = "PROVEEDOR CERTIFICADO STOP THE BLEED";
+                rankTitle.className = "text-xl font-extrabold text-blue-400";
+                rankDesc.textContent = "Buen desempeño operativo. Lograste salvar a la gran mayoría de las víctimas en los 50 escenarios tácticos y civiles.";
+            } else {
+                rankTitle.textContent = "REQUIERE REENTRENAMIENTO EN PROTOCOLOS";
+                rankTitle.className = "text-xl font-extrabold text-dod-red";
+                rankDesc.textContent = "Índice de bajas elevado. Es necesario repasar las prioridades del algoritmo MARCnH y el uso temprano de torniquete.";
+            }
+
+            const errorsContainer = document.getElementById('final-errors-list');
+            errorsContainer.innerHTML = '';
+
+            if (state.errorsList.length === 0) {
+                errorsContainer.innerHTML = `<div class="p-3 bg-emerald-950/60 border border-emerald-600 rounded-lg text-xs text-emerald-300">¡Impecable! Completaste los 50 casos sin cometer ningún error de protocolo.</div>`;
+            } else {
+                state.errorsList.forEach((err) => {
+                    const div = document.createElement('div');
+                    div.className = "p-3 bg-dod-dark border border-dod-border rounded-lg text-xs space-y-1";
+                    div.innerHTML = `
+                        <div class="font-bold text-amber-400">${err.caseTitle} - <span class="text-slate-200">${err.stepTitle}</span></div>
+                        <div class="text-slate-300 leading-normal">${err.feedback}</div>
+                    `;
+                    errorsContainer.appendChild(div);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
